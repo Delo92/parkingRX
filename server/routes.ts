@@ -201,34 +201,6 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
-  // ===========================================================================
-  // ONE-TIME CONFIG MIGRATION - Update branding to Handicap Permit Services
-  // ===========================================================================
-  try {
-    const existingConfig = await storage.getSiteConfig();
-    if (existingConfig && existingConfig.siteName && existingConfig.siteName !== defaultConfig.siteName) {
-      await storage.updateSiteConfig({
-        siteName: defaultConfig.siteName,
-        tagline: defaultConfig.tagline,
-        description: defaultConfig.description,
-        heroTitle: defaultConfig.heroTitle,
-        heroSubtitle: defaultConfig.heroSubtitle,
-        heroButtonText: defaultConfig.heroButtonText,
-        heroButtonLink: defaultConfig.heroButtonLink,
-        heroSecondaryButtonText: defaultConfig.heroSecondaryButtonText,
-        heroSecondaryButtonLink: defaultConfig.heroSecondaryButtonLink,
-        footerQuickLinks: defaultConfig.footerQuickLinks,
-        footerLegalLinks: defaultConfig.footerLegalLinks,
-        level1Name: defaultConfig.levelNames.level1,
-        level2Name: defaultConfig.levelNames.level2,
-        level3Name: defaultConfig.levelNames.level3,
-        level4Name: defaultConfig.levelNames.level4,
-      } as any);
-      console.log("[config] Migrated site config to new branding");
-    }
-  } catch (e: any) {
-    console.log("[config] Config migration skipped:", e.message);
-  }
 
   // ===========================================================================
   // FILE UPLOAD ROUTES (Firestore)
@@ -698,8 +670,8 @@ export async function registerRoutes(
             level3: config.level3Name,
             level4: config.level4Name,
           },
-          workflowSteps: defaultConfig.workflowSteps,
-          features: defaultConfig.features,
+          workflowSteps: (config as any).workflowSteps || defaultConfig.workflowSteps,
+          features: (config as any).features || defaultConfig.features,
         });
       } else {
         res.json(defaultConfig);
