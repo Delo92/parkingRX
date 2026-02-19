@@ -48,4 +48,3 @@ integrations = ["firebase_barebones_javascript:1.0.0", "javascript_database:1.0.
 BOOTSTRAP_TOKEN = "seed-2026-init"
 
 [userenv.shared]
-FIREBASE_STORAGE_BUCKET = "paw-credentials.firebasestorage.app"
