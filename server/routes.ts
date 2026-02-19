@@ -2055,10 +2055,10 @@ export async function registerRoutes(
 
       // Also ensure owner account exists as Level 4
       const allUsers = await storage.getAllUsers();
-      const hasOwner = allUsers.some((u: any) => u.userLevel === 4 && u.email === "owner@supportanimalregistry.com");
+      const hasOwner = allUsers.some((u: any) => u.userLevel === 4 && u.email === "owner@parkingrx.com");
       if (!hasOwner) {
         try {
-          const ownerEmail = req.body?.email || "owner@supportanimalregistry.com";
+          const ownerEmail = req.body?.email || "owner@parkingrx.com";
           const ownerPassword = req.body?.password || testPassword;
           const hashedOwnerPw = await bcrypt.hash(ownerPassword, 10);
           await storage.createUser({
