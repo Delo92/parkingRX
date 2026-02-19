@@ -92,8 +92,6 @@ function getCredentials(): { projectId: string; clientEmail: string; privateKey:
       pk = pk.replace(/\\n/g, '\n');
     }
     console.log(`Firebase credentials loaded from individual env vars for project: ${projectId}`);
-    console.log(`Firebase client_email: ${clientEmail}`);
-    console.log(`Firebase private_key starts with: ${pk.substring(0, 30)}...`);
     return { projectId, clientEmail, privateKey: pk };
   }
 
