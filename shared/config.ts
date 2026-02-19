@@ -59,14 +59,14 @@ export interface WhiteLabelConfig {
 }
 
 export const defaultConfig: WhiteLabelConfig = {
-  siteName: "Support Animal Registry",
-  tagline: "Fast, trusted support animal registration and certification",
-  description: "Get your registered support animal certification quickly and easily. Verified by licensed professionals, legally recognized, and delivered digitally.",
+  siteName: "Handicap Permit Services",
+  tagline: "Fast, trusted handicap parking permit applications",
+  description: "Apply for your handicap parking permit quickly and easily. Verified by licensed medical professionals, legally compliant, and delivered digitally.",
   primaryColor: "#3b82f6",
   secondaryColor: "#6366f1",
   accentColor: "#0ea5e9",
-  heroTitle: "Register Your Support Animal Today",
-  heroSubtitle: "Need an official support animal registration? We provide fast, legitimate ESA letters and certifications with quick turnaround times. Trusted, secure, and hassle-free.",
+  heroTitle: "Apply for Your Handicap Parking Permit",
+  heroSubtitle: "Need a disabled parking placard or permit? We streamline the application process with licensed medical professionals who review and certify your eligibility. Fast, secure, and hassle-free.",
   heroButtonText: "Get Started",
   heroButtonLink: "/register",
   heroSecondaryButtonText: "View Packages",
@@ -90,11 +90,11 @@ export const defaultConfig: WhiteLabelConfig = {
   },
   workflowSteps: [
     "Create Account",
-    "Select Registration Type",
+    "Select Permit Type",
     "Payment",
     "Provide Details",
-    "Professional Review",
-    "Certificate Issued",
+    "Medical Review",
+    "Permit Issued",
     "Delivered"
   ],
   features: {

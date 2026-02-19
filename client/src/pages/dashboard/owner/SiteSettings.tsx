@@ -966,7 +966,7 @@ export default function SiteSettings() {
                     </CardHeader>
                     <CardContent className="space-y-4">
                       {deptMediaFields.map((field, index) => {
-                        const deptNames = ["ESA Letters", "PSD Letters", "Travel Certificates", "Housing Verification", "Priority Registration"];
+                        const deptNames = ["Temporary Placards", "Permanent Permits", "Medical Certification", "Permit Renewals", "Priority Processing"];
                         const val = form.watch(`departmentMedia.${index}.url`);
                         return (
                           <div key={field.id} className="grid md:grid-cols-3 gap-4 items-start border rounded-md p-4" data-testid={`dept-media-${index}`}>
@@ -1270,7 +1270,7 @@ export default function SiteSettings() {
                             <Input placeholder="Applicant" data-testid="input-level1" {...field} />
                           </FormControl>
                           <FormDescription>
-                            Examples: Applicant, Pet Owner, Patient, Customer
+                            Examples: Applicant, Patient, Customer, Permit Holder
                           </FormDescription>
                           <FormMessage />
                         </FormItem>

@@ -201,7 +201,7 @@ export default function PackagesManagement() {
               Registration Types Management
             </h1>
             <p className="text-muted-foreground">
-              Create and manage support animal registration types
+              Create and manage handicap permit types
             </p>
           </div>
           <Button onClick={openCreateDialog} data-testid="button-create-package">
@@ -298,7 +298,7 @@ export default function PackagesManagement() {
               <DialogDescription>
                 {editingPackage
                   ? "Update the registration type details below."
-                  : "Fill in the details to create a new support animal registration type."}
+                  : "Fill in the details to create a new handicap permit type."}
               </DialogDescription>
             </DialogHeader>
             <Form {...form}>
@@ -310,7 +310,7 @@ export default function PackagesManagement() {
                     <FormItem>
                       <FormLabel>Registration Type Name</FormLabel>
                       <FormControl>
-                        <Input placeholder="e.g., ESA Letter" data-testid="input-package-name" {...field} />
+                        <Input placeholder="e.g., Temporary Placard" data-testid="input-package-name" {...field} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>

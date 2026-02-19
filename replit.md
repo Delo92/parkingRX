@@ -1,10 +1,10 @@
-# Support Animal Registry - Registered Support Animal Certification Platform
+# Handicap Permit Services - Disabled Parking Permit Application Platform
 
 ## Overview
 
-This is a white-label support animal registration and certification service with a 4-tier user hierarchy. The platform handles applicant registrations, professional review/approval, automated certificate generation, payments, messaging, and workflow automation. Built as a full-stack TypeScript application with React frontend, Express backend, and Firebase Firestore for data storage.
+This is a white-label handicap parking permit application service with a 4-tier user hierarchy. The platform handles applicant registrations, medical professional review/approval, automated permit document generation, payments, messaging, and workflow automation. Built as a full-stack TypeScript application with React frontend, Express backend, and Firebase Firestore for data storage.
 
-The core workflow follows: Registration → Package Selection → Payment → Form Auto-Fill → Professional Review/Approval → Auto-Certificate Generation → Completion.
+The core workflow follows: Registration → Permit Type Selection → Payment → Provide Details → Medical Review/Approval → Permit Document Generation → Completion.
 
 ## User Preferences
 

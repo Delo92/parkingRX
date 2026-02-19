@@ -16,10 +16,10 @@ export function Footer() {
   ];
 
   const serviceLinks = [
-    { label: "ESA Letters", url: "/packages" },
-    { label: "Housing Certification", url: "/packages" },
-    { label: "Travel Certificates", url: "/packages" },
-    { label: "PSD Letters", url: "/packages" },
+    { label: "Temporary Placards", url: "/packages" },
+    { label: "Permanent Permits", url: "/packages" },
+    { label: "Medical Certification", url: "/packages" },
+    { label: "Permit Renewals", url: "/packages" },
   ];
 
   return (
@@ -95,7 +95,7 @@ export function Footer() {
               Get Started
             </h4>
             <p className="text-sm text-muted-foreground">
-              Need to register your support animal? Create your account and get started in minutes.
+              Need a handicap parking permit? Create your account and get started in minutes.
             </p>
             <Button asChild data-testid="button-footer-register">
               <Link href="/register">
@@ -111,7 +111,7 @@ export function Footer() {
             {config.footerText || `\u00A9 ${currentYear} ${config.siteName}. All rights reserved.`}
           </p>
           <p className="text-xs text-muted-foreground" data-testid="text-footer-tagline">
-            Trusted support animal registration and certification
+            Trusted handicap parking permit services
           </p>
         </div>
       </div>

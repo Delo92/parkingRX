@@ -119,7 +119,7 @@ export default function RegistrationPage() {
           <Link href="/packages">
             <Button data-testid="button-buy-package">
               <ShoppingCart className="mr-2 h-4 w-4" />
-              Register Support Animal
+              Apply for Permit
             </Button>
           </Link>
         </div>

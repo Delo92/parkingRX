@@ -106,7 +106,7 @@ export default function ApplicationsListPage() {
               All Orders
             </h1>
             <p className="text-muted-foreground">
-              View and manage all support animal registration orders
+              View and manage all handicap permit applications
             </p>
           </div>
         </div>
@@ -157,7 +157,7 @@ export default function ApplicationsListPage() {
         <Card>
           <CardHeader>
             <CardTitle>Orders</CardTitle>
-            <CardDescription>All support animal registration orders</CardDescription>
+            <CardDescription>All handicap permit applications</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="flex flex-col sm:flex-row gap-4 mb-6">

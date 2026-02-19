@@ -202,7 +202,7 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
   // ===========================================================================
-  // ONE-TIME CONFIG MIGRATION - Update branding to Support Animal Registry
+  // ONE-TIME CONFIG MIGRATION - Update branding to Handicap Permit Services
   // ===========================================================================
   try {
     const existingConfig = await storage.getSiteConfig();
@@ -2011,30 +2011,30 @@ export async function registerRoutes(
       if (existingPackages.length === 0) {
         const seedPackages = [
           {
-            name: "ESA Letter",
-            description: "Emotional Support Animal letter for housing and travel. Reviewed and signed by a licensed professional.",
+            name: "Temporary Handicap Placard",
+            description: "Temporary disabled parking placard for short-term disabilities or post-surgery recovery. Includes medical certification by a licensed physician.",
             price: 4999,
             isActive: true,
             requiresLevel2: false,
-            features: ["Same-day delivery", "Digital copy", "Verification number"],
+            features: ["Same-day processing", "Digital copy", "Medical certification included"],
             category: "standard",
           },
           {
-            name: "Housing ESA Certification",
-            description: "Comprehensive ESA certification for landlords and housing providers. Compliant with the Fair Housing Act.",
+            name: "Permanent Disability Permit",
+            description: "Permanent handicap parking permit with full medical evaluation and certification. Compliant with all state DMV requirements.",
             price: 7999,
             isActive: true,
             requiresLevel2: true,
-            features: ["Priority processing", "Professional consultation", "Detailed documentation", "Print-ready PDF"],
+            features: ["Priority processing", "Physician consultation", "Detailed documentation", "Print-ready PDF"],
             category: "urgent",
           },
           {
-            name: "PSD Letter",
-            description: "Psychiatric Service Dog letter with professional evaluation. Includes follow-up recommendations.",
+            name: "Premium Permit Package",
+            description: "Complete handicap permit package with medical evaluation, certification, renewal reminders, and priority support.",
             price: 12999,
             isActive: true,
             requiresLevel2: true,
-            features: ["Professional evaluation", "Comprehensive documentation", "Follow-up plan", "Priority support"],
+            features: ["Full medical evaluation", "Comprehensive documentation", "Renewal reminders", "Priority support"],
             category: "specialist",
           },
         ];
@@ -2127,7 +2127,7 @@ export async function registerRoutes(
       );
       await initCollection("formTypes",
         () => storage.getFormTypes(),
-        () => storage.createFormType({ name: "Registration Form", description: "Standard support animal registration form", isActive: true })
+        () => storage.createFormType({ name: "Permit Application Form", description: "Standard handicap permit application form", isActive: true })
       );
       await initCollection("bulletin",
         () => storage.getBulletins(),
@@ -2143,7 +2143,7 @@ export async function registerRoutes(
       );
       await initCollection("blogPosts",
         () => storage.getBlogPosts(),
-        () => storage.createBlogPost({ title: "Welcome to Our Platform", content: "We are excited to launch our support animal registration service.", isPublished: true, authorId: "system" })
+        () => storage.createBlogPost({ title: "Welcome to Our Platform", content: "We are excited to launch our handicap parking permit service.", isPublished: true, authorId: "system" })
       );
 
       // 8. Initialize ALL remaining collections with placeholder docs so they appear in Firestore
@@ -2182,7 +2182,7 @@ export async function registerRoutes(
 
       res.json({
         success: true,
-        message: "Firebase seed complete - all Support Animal Registry collections initialized",
+        message: "Firebase seed complete - all Handicap Permit Services collections initialized",
         details: results,
       });
     } catch (error: any) {

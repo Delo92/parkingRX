@@ -49,18 +49,18 @@ export default function Home() {
   };
 
   const services = [
-    { icon: Heart, title: "Emotional Support Animal (ESA) Letter", description: "Official ESA letters reviewed and signed by licensed mental health professionals for housing and travel." },
-    { icon: Pill, title: "Housing ESA Certification", description: "Verified ESA documentation for landlords and housing providers, compliant with the Fair Housing Act." },
-    { icon: Stethoscope, title: "Travel ESA Certificate", description: "Certification for traveling with your support animal, accepted by major airlines and carriers." },
-    { icon: Dna, title: "Psychiatric Service Dog (PSD) Letter", description: "Professional PSD letters for individuals who qualify, reviewed by licensed providers." },
-    { icon: Accessibility, title: "Landlord Verification Letter", description: "Documentation verifying your support animal registration for landlords and property managers." },
-    { icon: NotebookPen, title: "Priority Processing", description: "Expedited processing for time-sensitive support animal registration needs." },
+    { icon: Accessibility, title: "Temporary Handicap Placard", description: "For short-term disabilities or recovery from surgery. Valid for up to 6 months with medical certification from a licensed provider." },
+    { icon: Shield, title: "Permanent Disability Placard", description: "For individuals with long-term mobility impairments. Reviewed and certified by licensed medical professionals." },
+    { icon: Stethoscope, title: "Medical Certification Form", description: "Licensed physicians complete the required medical certification verifying your qualifying disability condition." },
+    { icon: Heart, title: "Placard Renewal Service", description: "Hassle-free renewal of your existing handicap parking permit with updated medical documentation." },
+    { icon: ClipboardCheck, title: "Disabled License Plates", description: "Assistance with applying for permanent disabled person license plates through your state's DMV process." },
+    { icon: NotebookPen, title: "Priority Processing", description: "Expedited processing for urgent handicap permit needs, including same-day medical review availability." },
   ];
 
   const stats = [
-    { icon: Users, value: "10,000+", label: "Animals Registered" },
+    { icon: Users, value: "10,000+", label: "Permits Processed" },
     { icon: Building2, value: "24hr", label: "Processing Time" },
-    { icon: FlaskConical, value: "100%", label: "Legally Recognized" },
+    { icon: FlaskConical, value: "100%", label: "State Compliant" },
     { icon: Award, value: "4.9/5", label: "Customer Rating" },
   ];
 
@@ -74,20 +74,20 @@ export default function Home() {
   const deptMedia = config.departmentMediaUrls || [];
 
   const departments = [
-    { name: "ESA Letters", img: deptMedia[0] || defaultDeptImages[0], desc: "Emotional Support Animal letters for housing and travel, reviewed by licensed mental health professionals. Our most popular service with same-day delivery." },
-    { name: "PSD Letters", img: deptMedia[1] || defaultDeptImages[1], desc: "Psychiatric Service Dog letters for individuals who qualify, providing legal documentation for public access and housing rights." },
-    { name: "Travel Certificates", img: deptMedia[2] || defaultDeptImages[2], desc: "Support animal travel certification accepted by major airlines and transportation providers for hassle-free travel with your companion." },
-    { name: "Housing Verification", img: deptMedia[3] || defaultDeptImages[3], desc: "Comprehensive landlord verification letters ensuring your rights under the Fair Housing Act are protected for you and your support animal." },
-    { name: "Priority Registration", img: deptMedia[4] || defaultDeptImages[4], desc: "Expedited processing for time-sensitive registration needs. Get your verified support animal certification within hours." },
+    { name: "Temporary Placards", img: deptMedia[0] || defaultDeptImages[0], desc: "Short-term handicap parking placards for temporary disabilities, post-surgery recovery, or injury rehabilitation. Typically valid for up to 6 months." },
+    { name: "Permanent Permits", img: deptMedia[1] || defaultDeptImages[1], desc: "Permanent disabled parking permits for individuals with qualifying long-term mobility impairments, reviewed and certified by licensed physicians." },
+    { name: "Medical Certification", img: deptMedia[2] || defaultDeptImages[2], desc: "Our network of licensed medical professionals provides the required medical certification forms needed for your handicap permit application." },
+    { name: "Permit Renewals", img: deptMedia[3] || defaultDeptImages[3], desc: "Streamlined renewal process for existing handicap parking permits. We handle the medical re-certification and paperwork for you." },
+    { name: "Priority Processing", img: deptMedia[4] || defaultDeptImages[4], desc: "Expedited processing for urgent permit needs. Get your medical certification and application completed within hours." },
   ];
 
   const faqs = [
-    { q: "How quickly will I receive my support animal registration?", a: "Most registrations are processed and delivered within a few hours. Our priority service can deliver certifications even faster for urgent needs." },
-    { q: "Are the ESA letters legally recognized?", a: "Yes, all documentation is reviewed and signed by licensed mental health professionals. Our letters meet requirements under the Fair Housing Act and other applicable laws." },
-    { q: "Is my personal information kept confidential?", a: "Absolutely. We use industry-standard encryption and never share your personal information with third parties. Your privacy is our top priority." },
-    { q: "What types of support animal certifications do you offer?", a: "We offer ESA letters for housing, travel certificates, Psychiatric Service Dog letters, landlord verification letters, and priority registration services." },
-    { q: "Can I get a refund if I'm not satisfied?", a: "Yes, we offer a satisfaction guarantee. If your certification doesn't meet your needs, contact our support team for assistance." },
-    { q: "What do I need to get started?", a: "Simply create an account and provide basic information about yourself and your animal. Our licensed professionals will review your application and handle the rest." },
+    { q: "How quickly will I receive my handicap parking permit?", a: "Most applications are processed within 24 hours. Our priority service can deliver medical certifications even faster for urgent needs." },
+    { q: "What conditions qualify for a handicap parking permit?", a: "Qualifying conditions include mobility impairments, use of assistive devices, heart or lung conditions that limit walking, and other disabilities. A licensed physician will evaluate your eligibility." },
+    { q: "Is my personal and medical information kept confidential?", a: "Absolutely. We use HIPAA-compliant encryption and never share your personal or medical information with third parties. Your privacy is our top priority." },
+    { q: "What types of handicap permits do you help with?", a: "We assist with temporary placards, permanent disability placards, disabled person license plates, permit renewals, and medical certification forms." },
+    { q: "Can I get a refund if my application is denied?", a: "Yes, if a licensed physician determines you do not meet the medical criteria, you are eligible for a refund. Contact our support team for assistance." },
+    { q: "What do I need to get started?", a: "Simply create an account and provide basic information about yourself and your condition. A licensed medical professional will review your application and complete the required certification." },
   ];
 
   const defaultTestimonialImages = [
@@ -100,11 +100,11 @@ export default function Home() {
   const testimonialMedia = config.testimonialMediaUrls || [];
 
   const testimonials = [
-    { name: "Sarah M.", role: "Pet Owner", text: "Got my ESA letter within 2 hours. The process was incredibly smooth and professional. My landlord accepted it right away!", rating: 5, img: testimonialMedia[0] || defaultTestimonialImages[0] },
-    { name: "James K.", role: "Apartment Renter", text: "Needed an ESA letter for my new apartment and they delivered. The letter was professional and accepted without any issues.", rating: 5, img: testimonialMedia[1] || defaultTestimonialImages[1] },
-    { name: "Emily R.", role: "Frequent Traveler", text: "The travel certificate was exactly what I needed for my support dog. Professional, quick, and completely confidential.", rating: 5, img: testimonialMedia[2] || defaultTestimonialImages[2] },
-    { name: "Michael D.", role: "Dog Owner", text: "Outstanding service. I needed a PSD letter urgently and they delivered within the hour. Will definitely use again.", rating: 5, img: testimonialMedia[3] || defaultTestimonialImages[3] },
-    { name: "Lisa T.", role: "Cat Owner", text: "Simple process, legitimate documentation. My housing provider accepted the ESA letter immediately. The customer service was excellent too.", rating: 5, img: testimonialMedia[4] || defaultTestimonialImages[4] },
+    { name: "Sarah M.", role: "Permit Applicant", text: "Got my temporary placard within a day. The medical review was quick and the whole process was incredibly smooth and professional.", rating: 5, img: testimonialMedia[0] || defaultTestimonialImages[0] },
+    { name: "James K.", role: "Permit Holder", text: "After my knee surgery, I needed a handicap placard fast. They connected me with a doctor who certified me the same day.", rating: 5, img: testimonialMedia[1] || defaultTestimonialImages[1] },
+    { name: "Emily R.", role: "Caregiver", text: "Helped my elderly mother get her permanent parking permit. The process was respectful, professional, and completely confidential.", rating: 5, img: testimonialMedia[2] || defaultTestimonialImages[2] },
+    { name: "Michael D.", role: "Permit Applicant", text: "Outstanding service. I needed my permit renewed urgently and they handled everything within hours. Will definitely use again.", rating: 5, img: testimonialMedia[3] || defaultTestimonialImages[3] },
+    { name: "Lisa T.", role: "Permit Holder", text: "Simple process, legitimate documentation. My state DMV accepted everything without any issues. The customer service was excellent too.", rating: 5, img: testimonialMedia[4] || defaultTestimonialImages[4] },
   ];
 
   const defaultGalleryImages = [
@@ -141,7 +141,7 @@ export default function Home() {
                 {config.heroTitle || `WELCOME TO ${config.siteName.toUpperCase()}`}
               </h2>
               <p className="text-primary-foreground/90 text-lg mb-6 leading-relaxed">
-                {config.heroSubtitle || "Trusted support animal registration and certification delivered quickly. Join thousands of satisfied pet owners."}
+                {config.heroSubtitle || "Trusted handicap parking permit services delivered quickly. Join thousands of satisfied applicants."}
               </p>
               {isAuthenticated ? (
                 <Button size="lg" variant="secondary" asChild data-testid="button-hero-dashboard">
@@ -163,9 +163,9 @@ export default function Home() {
 
           <div className="grid md:grid-cols-3 gap-5 mt-10">
             {[
-              { icon: ClipboardCheck, title: "Licensed Professionals", desc: "All certifications reviewed and signed by licensed mental health professionals." },
-              { icon: ShieldCheck, title: "100% Confidential", desc: "Your information is encrypted and never shared with third parties." },
-              { icon: Clock, title: "Same-Day Delivery", desc: "Receive your verified certification within hours of submitting your application." },
+              { icon: ClipboardCheck, title: "Licensed Physicians", desc: "All medical certifications reviewed and signed by licensed medical professionals." },
+              { icon: ShieldCheck, title: "HIPAA Compliant", desc: "Your medical information is encrypted and never shared with third parties." },
+              { icon: Clock, title: "Fast Processing", desc: "Receive your approved permit application within hours of submitting." },
             ].map((item, i) => (
               <AnimateOnScroll key={i} animation="fade-up" delay={i * 100}>
                 <Card className="bg-background/95 backdrop-blur-sm shadow-lg border-0" data-testid={`hero-icon-box-${i}`}>
@@ -207,13 +207,13 @@ export default function Home() {
                 </h3>
                 <div className="w-16 h-1 bg-primary rounded-full mb-6" />
                 <p className="text-muted-foreground mb-8 leading-relaxed text-base">
-                  We provide fast, professional support animal registration for individuals who need legitimate ESA letters and certifications. Our licensed mental health professionals ensure every document meets the highest legal standards.
+                  We simplify the handicap parking permit application process. Our network of licensed medical professionals reviews your eligibility and completes the required medical certification forms, so you can get your permit faster.
                 </p>
                 <div className="space-y-6">
                   {[
-                    { icon: ShieldCheck, title: "Licensed Mental Health Professionals", desc: "Every certification is reviewed and signed by a licensed professional." },
-                    { icon: Clock, title: "Fast Turnaround Time", desc: "Most applications are processed within hours, with priority options available." },
-                    { icon: Shield, title: "Complete Privacy Protection", desc: "Your personal information is encrypted and never shared with anyone." },
+                    { icon: ShieldCheck, title: "Licensed Medical Professionals", desc: "Every medical certification is reviewed and signed by a licensed physician." },
+                    { icon: Clock, title: "Fast Turnaround Time", desc: "Most applications are processed within 24 hours, with priority options available." },
+                    { icon: Shield, title: "HIPAA-Compliant Privacy", desc: "Your medical and personal information is encrypted and never shared with anyone." },
                   ].map((item, i) => (
                     <div key={i} className="flex gap-4 items-start" data-testid={`about-item-${i}`}>
                       <div className="shrink-0 w-12 h-12 rounded-md bg-primary/10 flex items-center justify-center">
@@ -264,7 +264,7 @@ export default function Home() {
                 Services
               </h2>
               <p className="text-muted-foreground max-w-2xl mx-auto mt-4 text-base">
-                Professional support animal registration and certification for every situation, delivered with speed and care.
+                Professional handicap parking permit services for every situation, delivered with speed and care.
               </p>
             </div>
           </AnimateOnScroll>
@@ -304,10 +304,10 @@ export default function Home() {
           <AnimateOnScroll animation="fade-up">
             <div className="text-center max-w-2xl mx-auto text-primary-foreground">
               <h2 className="text-3xl md:text-4xl font-bold mb-4 !text-white" data-testid="text-cta-title">
-                Register Your Support Animal Now
+                Apply for Your Handicap Permit Now
               </h2>
               <p className="text-primary-foreground/80 text-lg mb-8 leading-relaxed">
-                Join thousands of satisfied pet owners. Get your verified certification in just a few simple steps.
+                Join thousands of satisfied applicants. Get your medical certification and permit application completed in just a few simple steps.
               </p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
                 <Button size="lg" variant="secondary" asChild data-testid="button-cta-start">
@@ -334,7 +334,7 @@ export default function Home() {
                 Departments
               </h2>
               <p className="text-muted-foreground max-w-2xl mx-auto mt-4 text-base">
-                Explore our specialized registration services tailored to your specific needs.
+                Explore our specialized permit services tailored to your specific needs.
               </p>
             </div>
           </AnimateOnScroll>
@@ -396,7 +396,7 @@ export default function Home() {
                 Frequently Asked Questions
               </h2>
               <p className="text-muted-foreground max-w-2xl mx-auto mt-4 text-base">
-                Find answers to common questions about our support animal registration service.
+                Find answers to common questions about our handicap parking permit service.
               </p>
             </div>
           </AnimateOnScroll>
@@ -438,7 +438,7 @@ export default function Home() {
                 </h3>
                 <div className="w-16 h-1 bg-primary rounded-full mb-6" />
                 <p className="text-muted-foreground leading-relaxed text-base">
-                  Hear from our satisfied customers who trust us for their support animal registration needs. We're proud to maintain a 4.9/5 rating across thousands of registrations.
+                  Hear from our satisfied customers who trust us for their handicap permit needs. We're proud to maintain a 4.9/5 rating across thousands of applications.
                 </p>
               </div>
             </AnimateOnScroll>
@@ -537,7 +537,7 @@ export default function Home() {
                 Ready to Get Started?
               </h2>
               <p className="text-primary-foreground/80 text-lg mb-8 leading-relaxed">
-                Create your account today and receive your support animal certification in minutes. Our team is available 24/7 to assist you.
+                Create your account today and start your handicap parking permit application. Our team is available 24/7 to assist you.
               </p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
                 <Button size="lg" variant="secondary" asChild data-testid="button-contact-register">

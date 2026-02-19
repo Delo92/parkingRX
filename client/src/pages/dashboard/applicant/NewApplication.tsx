@@ -85,7 +85,7 @@ export default function NewApplication() {
       queryClient.invalidateQueries({ queryKey: ["/api/applications"] });
       toast({
         title: "Order Submitted!",
-        description: "Your support animal registration has been submitted successfully.",
+        description: "Your handicap permit application has been submitted successfully.",
       });
       setLocation(`/dashboard/applicant/applications/${application.id}`);
     },
@@ -131,7 +131,7 @@ export default function NewApplication() {
           </Button>
           <div>
             <h1 className="text-2xl font-bold tracking-tight" data-testid="text-new-app-title">
-              Register Support Animal
+              Apply for Handicap Permit
             </h1>
             <p className="text-muted-foreground">
               Step {step} of {totalSteps}
@@ -337,7 +337,7 @@ export default function NewApplication() {
                         <FormLabel>Purpose of Registration</FormLabel>
                         <FormControl>
                           <Textarea
-                            placeholder="What do you need this registration for? (e.g., housing ESA, travel, emotional support, etc.)"
+                            placeholder="Why do you need a handicap parking permit? (e.g., mobility impairment, post-surgery recovery, chronic condition, etc.)"
                             className="min-h-[120px]"
                             data-testid="input-reason"
                             {...field}

@@ -167,9 +167,9 @@ export default function ApplicantDashboard() {
         {/* Available Services */}
         <Card data-testid="card-available-services">
           <CardHeader>
-            <CardTitle>Register a Support Animal</CardTitle>
+            <CardTitle>Apply for a Handicap Permit</CardTitle>
             <CardDescription>
-              Choose the registration type you need
+              Choose the permit type you need
             </CardDescription>
           </CardHeader>
           <CardContent>

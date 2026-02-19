@@ -61,7 +61,7 @@ export default function DocumentsPage() {
               My Certificates
             </h1>
             <p className="text-muted-foreground">
-              View and download your support animal certifications
+              View and download your handicap permit documents
             </p>
           </div>
           <Button onClick={() => setIsUploadOpen(true)} data-testid="button-upload-document">
