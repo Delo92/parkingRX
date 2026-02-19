@@ -45,6 +45,5 @@ integrations = ["firebase_barebones_javascript:1.0.0", "javascript_database:1.0.
 [userenv]
 
 [userenv.development]
-BOOTSTRAP_TOKEN = "seed-2026-init"
 
 [userenv.shared]
