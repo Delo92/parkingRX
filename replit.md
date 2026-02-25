@@ -101,6 +101,7 @@ Component: `client/src/components/MediaRenderer.tsx` - detects type from URL and
 ### Backend Libraries
 - **Authentication**: bcryptjs for password hashing
 - **File Uploads**: multer for multipart form data (gallery image uploads stored in `uploads/gallery/`)
+- **Email**: @sendgrid/mail for transactional emails (doctor approval requests, admin notifications, patient approval notifications)
 
 ### Development Tools
 - **Replit Plugins**: @replit/vite-plugin-runtime-error-modal, cartographer, dev-banner
@@ -109,6 +110,9 @@ Component: `client/src/components/MediaRenderer.tsx` - detects type from URL and
 ### Environment Variables Required
 - `DATABASE_URL` - PostgreSQL connection string (required)
 - `VITE_FIREBASE_*` - Optional Firebase configuration for enhanced auth
+- `SENDGRID_API_KEY` - SendGrid API key for transactional emails
+- `SENDGRID_FROM_EMAIL` - Sender email address for outbound emails
+- `JOTFORM_API_KEY` - JotForm API key (for future document template integration)
 
 ## Current Implementation Status
 
@@ -116,30 +120,37 @@ Component: `client/src/components/MediaRenderer.tsx` - detects type from URL and
 - **Authentication**: Stateless Firebase token-based auth (no server-side sessions)
 - **4 Role-Based Dashboards**: Each with unique stats, actions, and navigation
 - **Application Workflow**: 3-step wizard for creating new applications
-- **Package Management**: Browse and select service packages
+- **Package Management**: Browse and select service packages with configurable required fields
+- **Package-Specific Required Fields**: Admins define custom form fields per package (text, textarea, select, date, email, phone, number)
 - **Doctor Review System**: Secure token-based review links sent to doctors (no login required)
-- **Round-Robin Doctor Assignment**: Admin sends applications to doctors with automatic rotation
+- **Round-Robin Doctor Assignment**: Global round-robin auto-assigns doctors fairly
+- **Auto-Send to Doctor**: Applications automatically sent to next doctor after submission (no manual admin step needed)
+- **Email System (SendGrid)**: Automated emails on key events:
+  - Doctor receives approval request email with patient details + Approve button
+  - Admin notification email receives same approval request simultaneously
+  - Patient receives approval confirmation email with dashboard link on doctor approval
+- **Admin Notification Email**: Configurable email address in admin settings that receives all approval requests
 - **Auto Document Generation**: Documents auto-generated upon doctor approval with doctor credentials
-- **Auto-Message Triggers**: Automated messages on status changes
+- **Auto-Message Triggers**: Automated in-app messages on status changes
 - **Owner Configuration**: Full white-label settings (branding, role names, contact info)
 - **Admin User Management**: Search, filter, and edit user levels/status
 - **Dark/Light Theme**: System-aware with manual toggle
 
-### Application Processing Workflow
+### Application Processing Workflow (Automated)
 
-The complete workflow for processing applications through the platform:
+The complete automated workflow:
 
-1. Level 1 (Applicant) creates account, selects package, completes payment
-2. Application created with status `pending`
-3. Level 3 (Admin) sends application to a doctor via "Send to Doctor" button
-   - Uses round-robin rotation to auto-assign doctors fairly
-   - Generates a secure one-time review link (expires in 7 days)
-   - Application status changes to `doctor_review`
-4. Doctor receives review link, opens public review portal (no login needed)
-   - Reviews patient info, application details, form data
-   - **Approves** → `doctor_approved` → auto-generates certificate document
+1. Level 1 (Applicant) creates account, selects package, fills in details (including package-specific required fields)
+2. Application submitted → system automatically assigns next doctor via global round-robin
+3. Two emails sent simultaneously:
+   - To the assigned doctor — patient details, package type, reason, and Approve button
+   - To the admin notification email — same info, same Approve button
+4. Either recipient clicks Approve button → loads token-based review portal (no login needed)
+   - **Approves** → `doctor_approved` → auto-generates permit document → patient emailed + dashboard notification
    - **Denies** → `doctor_denied` → patient notified with reason
-5. Upon approval, patient receives notification and certificate is available
+5. Patient receives approval email and can download permit from their dashboard
+
+Manual flow also available: Admin can still manually send applications to specific doctors via "Send to Doctor" button.
 
 **Application Status Values:**
 - `pending` - New application, ready to be sent to doctor
@@ -165,10 +176,10 @@ The complete workflow for processing applications through the platform:
 - `GET /api/config` - Get site configuration
 - `GET /api/packages` - List active packages
 - `GET /api/applications` - Get user's applications
-- `POST /api/applications` - Create new application
-- `POST /api/admin/applications/:id/send-to-doctor` - Send application to doctor (round-robin or manual), generates review token (Level 3+)
+- `POST /api/applications` - Create new application (auto-sends to doctor if `autoSendToDoctor: true`)
+- `POST /api/admin/applications/:id/send-to-doctor` - Manual send to doctor (round-robin or manual), generates review token + sends emails (Level 3+)
 - `GET /api/review/:token` - Public: Load application data for doctor review (no auth)
-- `POST /api/review/:token/decision` - Public: Submit doctor's approve/deny decision (no auth)
+- `POST /api/review/:token/decision` - Public: Submit doctor's approve/deny decision, triggers patient email on approval (no auth)
 - `GET /api/doctors` - List active doctors (Level 3+)
 - `GET /api/doctors/stats` - Get doctor's review stats and token history (Level 2+)
 - `GET /api/review-tokens` - Get review tokens for an application (Level 3+)
@@ -176,7 +187,14 @@ The complete workflow for processing applications through the platform:
 - `GET /api/admin/users` - List all users (Level 3+)
 - `PUT /api/admin/users/:id` - Update user (Level 3+)
 - `GET /api/admin/applications` - List all applications (Level 3+)
+- `GET /api/admin/settings` - Get admin settings including notification email (Level 3+)
+- `PUT /api/admin/settings` - Update admin settings (Level 3+)
 - `PUT /api/owner/config` - Update site config (Level 4)
+
+### Email System (server/email.ts)
+- `sendDoctorApprovalEmail()` - Sends review request to doctor with patient details + Approve button
+- `sendAdminNotificationEmail()` - Sends same review request to admin notification email
+- `sendPatientApprovalEmail()` - Sends approval confirmation to patient with dashboard link
 
 ### Key Routes
 - `/` - Landing page
