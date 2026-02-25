@@ -40,7 +40,23 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Package } from "@shared/schema";
-import { Plus, Pencil, Trash2, Loader2 } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Plus, Pencil, Trash2, Loader2, X } from "lucide-react";
+
+const formFieldSchema = z.object({
+  name: z.string().min(1),
+  label: z.string().min(1),
+  type: z.enum(["text", "textarea", "select", "date", "email", "phone", "number"]),
+  required: z.boolean().default(true),
+  options: z.array(z.string()).optional(),
+  placeholder: z.string().optional(),
+});
 
 const packageSchema = z.object({
   name: z.string().min(1, "Package name is required"),
@@ -50,8 +66,10 @@ const packageSchema = z.object({
   processingTime: z.string().optional(),
   requiresLevel2Interaction: z.boolean().default(false),
   isActive: z.boolean().default(true),
+  formFields: z.array(formFieldSchema).default([]),
 });
 
+type FormFieldDef = z.infer<typeof formFieldSchema>;
 type PackageFormData = z.infer<typeof packageSchema>;
 
 export default function PackagesManagement() {
@@ -78,12 +96,32 @@ export default function PackagesManagement() {
     },
   });
 
+  const [formFields, setFormFields] = useState<FormFieldDef[]>([]);
+
+  const addFormField = () => {
+    setFormFields([...formFields, { name: "", label: "", type: "text", required: true }]);
+  };
+
+  const removeFormField = (index: number) => {
+    setFormFields(formFields.filter((_, i) => i !== index));
+  };
+
+  const updateFormField = (index: number, field: Partial<FormFieldDef>) => {
+    const updated = [...formFields];
+    updated[index] = { ...updated[index], ...field };
+    if (field.label && !updated[index].name) {
+      updated[index].name = field.label.toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "");
+    }
+    setFormFields(updated);
+  };
+
   const createPackage = useMutation({
     mutationFn: async (data: PackageFormData) => {
       const response = await apiRequest("POST", "/api/admin/packages", {
         ...data,
         price: parseFloat(data.price),
         features: data.features ? data.features.split("\n").filter(Boolean) : [],
+        formFields,
       });
       return response.json();
     },
@@ -111,6 +149,7 @@ export default function PackagesManagement() {
         ...data,
         price: parseFloat(data.price),
         features: data.features ? data.features.split("\n").filter(Boolean) : [],
+        formFields,
       });
       return response.json();
     },
@@ -156,6 +195,7 @@ export default function PackagesManagement() {
 
   const openCreateDialog = () => {
     setEditingPackage(null);
+    setFormFields([]);
     form.reset({
       name: "",
       description: "",
@@ -164,20 +204,24 @@ export default function PackagesManagement() {
       processingTime: "",
       requiresLevel2Interaction: false,
       isActive: true,
+      formFields: [],
     });
     setIsDialogOpen(true);
   };
 
   const openEditDialog = (pkg: Package) => {
     setEditingPackage(pkg);
+    const existingFields = Array.isArray((pkg as any).formFields) ? (pkg as any).formFields : [];
+    setFormFields(existingFields);
     form.reset({
       name: pkg.name,
       description: pkg.description || "",
       price: pkg.price.toString(),
-      features: Array.isArray(pkg.features) ? pkg.features.join("\n") : "",
-      processingTime: pkg.processingTime || "",
+      features: Array.isArray((pkg as any).features) ? (pkg as any).features.join("\n") : "",
+      processingTime: (pkg as any).processingTime || "",
       requiresLevel2Interaction: pkg.requiresLevel2Interaction || false,
       isActive: pkg.isActive,
+      formFields: existingFields,
     });
     setIsDialogOpen(true);
   };
@@ -290,7 +334,7 @@ export default function PackagesManagement() {
 
         {/* Create/Edit Dialog */}
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogContent className="max-w-md">
+          <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>
                 {editingPackage ? "Edit Registration Type" : "Create Registration Type"}
@@ -389,6 +433,69 @@ export default function PackagesManagement() {
                     </FormItem>
                   )}
                 />
+
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <FormLabel>Required Fields</FormLabel>
+                    <Button type="button" variant="outline" size="sm" onClick={addFormField} data-testid="button-add-form-field">
+                      <Plus className="h-3 w-3 mr-1" /> Add Field
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Define what information the system needs to collect from applicants for this package.
+                  </p>
+                  {formFields.map((field, index) => (
+                    <div key={index} className="border rounded-lg p-3 space-y-2" data-testid={`form-field-${index}`}>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium">Field {index + 1}</span>
+                        <Button type="button" variant="ghost" size="icon" onClick={() => removeFormField(index)} className="h-6 w-6">
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <Input
+                          placeholder="Field label"
+                          value={field.label}
+                          onChange={(e) => updateFormField(index, { label: e.target.value, name: e.target.value.toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "") })}
+                          data-testid={`input-field-label-${index}`}
+                        />
+                        <Select
+                          value={field.type}
+                          onValueChange={(value) => updateFormField(index, { type: value as any })}
+                        >
+                          <SelectTrigger data-testid={`select-field-type-${index}`}>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="text">Text</SelectItem>
+                            <SelectItem value="textarea">Long Text</SelectItem>
+                            <SelectItem value="email">Email</SelectItem>
+                            <SelectItem value="phone">Phone</SelectItem>
+                            <SelectItem value="number">Number</SelectItem>
+                            <SelectItem value="date">Date</SelectItem>
+                            <SelectItem value="select">Dropdown</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      {field.type === "select" && (
+                        <Input
+                          placeholder="Options (comma-separated)"
+                          value={(field.options || []).join(", ")}
+                          onChange={(e) => updateFormField(index, { options: e.target.value.split(",").map(s => s.trim()).filter(Boolean) })}
+                          data-testid={`input-field-options-${index}`}
+                        />
+                      )}
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          checked={field.required}
+                          onCheckedChange={(checked) => updateFormField(index, { required: checked })}
+                          data-testid={`switch-field-required-${index}`}
+                        />
+                        <span className="text-xs text-muted-foreground">Required</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
 
                 <FormField
                   control={form.control}

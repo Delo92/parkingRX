@@ -13,6 +13,13 @@ import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Form,
   FormControl,
   FormField,
@@ -52,6 +59,7 @@ export default function NewApplication() {
 
   const [step, setStep] = useState(1);
   const totalSteps = 3;
+  const [customFields, setCustomFields] = useState<Record<string, string>>({});
 
   const { data: packages, isLoading: packagesLoading } = useQuery<Package[]>({
     queryKey: ["/api/packages"],
@@ -77,7 +85,8 @@ export default function NewApplication() {
     mutationFn: async (data: ApplicationFormData) => {
       const response = await apiRequest("POST", "/api/applications", {
         packageId: data.packageId,
-        formData: data,
+        formData: { ...data, ...customFields },
+        autoSendToDoctor: true,
       });
       return response.json();
     },
@@ -329,6 +338,50 @@ export default function NewApplication() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
+                  {Array.isArray((selectedPackage as any)?.formFields) && (selectedPackage as any).formFields.length > 0 && (
+                    <div className="space-y-4">
+                      {(selectedPackage as any).formFields.map((field: any, idx: number) => (
+                        <div key={field.name || idx}>
+                          <Label className="mb-1.5 block">
+                            {field.label || field.name}
+                            {field.required && <span className="text-destructive ml-1">*</span>}
+                          </Label>
+                          {field.type === "textarea" ? (
+                            <Textarea
+                              placeholder={field.placeholder || `Enter ${field.label || field.name}`}
+                              value={customFields[field.name] || ""}
+                              onChange={(e) => setCustomFields({ ...customFields, [field.name]: e.target.value })}
+                              data-testid={`input-custom-${field.name}`}
+                              className="min-h-[80px]"
+                            />
+                          ) : field.type === "select" ? (
+                            <Select
+                              value={customFields[field.name] || ""}
+                              onValueChange={(value) => setCustomFields({ ...customFields, [field.name]: value })}
+                            >
+                              <SelectTrigger data-testid={`select-custom-${field.name}`}>
+                                <SelectValue placeholder={`Select ${field.label || field.name}`} />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {(field.options || []).map((opt: string) => (
+                                  <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          ) : (
+                            <Input
+                              type={field.type === "phone" ? "tel" : field.type || "text"}
+                              placeholder={field.placeholder || `Enter ${field.label || field.name}`}
+                              value={customFields[field.name] || ""}
+                              onChange={(e) => setCustomFields({ ...customFields, [field.name]: e.target.value })}
+                              data-testid={`input-custom-${field.name}`}
+                            />
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
                   <FormField
                     control={form.control}
                     name="reason"
