@@ -11,7 +11,6 @@ import { AppShell } from "@/components/layout/AppShell";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
 import { Loader2 } from "lucide-react";
 
-// Lazy load pages for code-splitting
 const Home = lazy(() => import("@/pages/Home"));
 const Login = lazy(() => import("@/pages/Login"));
 const Register = lazy(() => import("@/pages/Register"));
@@ -20,34 +19,27 @@ const SetupRequired = lazy(() => import("@/pages/SetupRequired"));
 const NotFound = lazy(() => import("@/pages/not-found"));
 const DoctorReviewPortal = lazy(() => import("@/pages/DoctorReviewPortal"));
 
-// Dashboard pages
-const ApplicantDashboard = lazy(() => import("@/pages/dashboard/ApplicantDashboard"));
-const NewApplication = lazy(() => import("@/pages/dashboard/applicant/NewApplication"));
-const DoctorDashboard = lazy(() => import("@/pages/dashboard/DoctorDashboard"));
-const AdminDashboard = lazy(() => import("@/pages/dashboard/AdminDashboard"));
-const UsersManagement = lazy(() => import("@/pages/dashboard/admin/UsersManagement"));
-const PackagesManagement = lazy(() => import("@/pages/dashboard/admin/PackagesManagement"));
-const DoctorsManagement = lazy(() => import("@/pages/dashboard/admin/DoctorsManagement"));
-const OwnerDashboard = lazy(() => import("@/pages/dashboard/OwnerDashboard"));
-const SiteSettings = lazy(() => import("@/pages/dashboard/owner/SiteSettings"));
-
-// Applicant sub-pages
-const RegistrationPage = lazy(() => import("@/pages/dashboard/applicant/RegistrationPage"));
-const DocumentsPage = lazy(() => import("@/pages/dashboard/applicant/DocumentsPage"));
-const PaymentsPage = lazy(() => import("@/pages/dashboard/applicant/PaymentsPage"));
-
-// Shared pages (used across multiple levels)
-const SharedSettingsPage = lazy(() => import("@/pages/dashboard/shared/SettingsPage"));
-const SharedMessagesPage = lazy(() => import("@/pages/dashboard/shared/MessagesPage"));
-const SharedCompletedPage = lazy(() => import("@/pages/dashboard/shared/CompletedPage"));
-const SharedApplicationsListPage = lazy(() => import("@/pages/dashboard/shared/ApplicationsListPage"));
-const SharedPaymentsManagementPage = lazy(() => import("@/pages/dashboard/shared/PaymentsManagementPage"));
-const SharedAnalyticsPage = lazy(() => import("@/pages/dashboard/shared/AnalyticsPage"));
-const SharedCommissionsPage = lazy(() => import("@/pages/dashboard/shared/CommissionsPage"));
-const SharedReferralsPage = lazy(() => import("@/pages/dashboard/shared/ReferralsPage"));
-
-// Generic placeholder for pages not yet implemented
-const PlaceholderPage = lazy(() => import("@/pages/dashboard/placeholders/PlaceholderPage"));
+import ApplicantDashboard from "@/pages/dashboard/ApplicantDashboard";
+import NewApplication from "@/pages/dashboard/applicant/NewApplication";
+import DoctorDashboard from "@/pages/dashboard/DoctorDashboard";
+import AdminDashboard from "@/pages/dashboard/AdminDashboard";
+import UsersManagement from "@/pages/dashboard/admin/UsersManagement";
+import PackagesManagement from "@/pages/dashboard/admin/PackagesManagement";
+import DoctorsManagement from "@/pages/dashboard/admin/DoctorsManagement";
+import OwnerDashboard from "@/pages/dashboard/OwnerDashboard";
+import SiteSettings from "@/pages/dashboard/owner/SiteSettings";
+import RegistrationPage from "@/pages/dashboard/applicant/RegistrationPage";
+import DocumentsPage from "@/pages/dashboard/applicant/DocumentsPage";
+import PaymentsPage from "@/pages/dashboard/applicant/PaymentsPage";
+import SharedSettingsPage from "@/pages/dashboard/shared/SettingsPage";
+import SharedMessagesPage from "@/pages/dashboard/shared/MessagesPage";
+import SharedCompletedPage from "@/pages/dashboard/shared/CompletedPage";
+import SharedApplicationsListPage from "@/pages/dashboard/shared/ApplicationsListPage";
+import SharedPaymentsManagementPage from "@/pages/dashboard/shared/PaymentsManagementPage";
+import SharedAnalyticsPage from "@/pages/dashboard/shared/AnalyticsPage";
+import SharedCommissionsPage from "@/pages/dashboard/shared/CommissionsPage";
+import SharedReferralsPage from "@/pages/dashboard/shared/ReferralsPage";
+import PlaceholderPage from "@/pages/dashboard/placeholders/PlaceholderPage";
 
 function PageLoader() {
   return (
