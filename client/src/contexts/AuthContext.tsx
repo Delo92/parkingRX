@@ -2,6 +2,7 @@ import { createContext, useContext, useState, useEffect } from "react";
 import type { User } from "@shared/schema";
 import {
   signInWithEmailAndPassword,
+  signInWithCustomToken,
   createUserWithEmailAndPassword,
   signOut,
   onAuthStateChanged,
@@ -94,8 +95,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return data.user || data;
     } catch (error: any) {
       if (error.code === 'auth/invalid-credential' || error.code === 'auth/user-not-found') {
-        const response = await apiRequest("POST", "/api/auth/login", { email, password });
+        const response = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password }),
+          credentials: 'include',
+        });
+        if (!response.ok) {
+          const text = await response.text();
+          throw new Error(text || 'Login failed');
+        }
         const data = await response.json();
+        if (data.customToken) {
+          await signInWithCustomToken(auth, data.customToken);
+        }
         setUser(data.user);
         return data.user;
       }

@@ -508,7 +508,36 @@ export async function registerRoutes(
         return;
       }
 
-      // Log activity
+      let customToken: string | undefined;
+      try {
+        const adminAuth = getAdminAuth();
+        let firebaseUid = user.firebaseUid;
+        if (!firebaseUid) {
+          try {
+            const fbUser = await adminAuth.createUser({
+              email: user.email,
+              password: password,
+              displayName: `${user.firstName} ${user.lastName}`,
+            });
+            firebaseUid = fbUser.uid;
+            await storage.updateUser(user.id, { firebaseUid });
+          } catch (fbErr: any) {
+            if (fbErr.code === "auth/email-already-exists") {
+              const existingFbUser = await adminAuth.getUserByEmail(user.email);
+              firebaseUid = existingFbUser.uid;
+              await storage.updateUser(user.id, { firebaseUid });
+            } else {
+              console.error("Firebase user creation error:", fbErr);
+            }
+          }
+        }
+        if (firebaseUid) {
+          customToken = await adminAuth.createCustomToken(firebaseUid);
+        }
+      } catch (tokenErr) {
+        console.error("Custom token creation error:", tokenErr);
+      }
+
       await storage.createActivityLog({
         userId: user.id,
         action: "user_login",
@@ -522,6 +551,7 @@ export async function registerRoutes(
           passwordHash: undefined,
           password: undefined,
         },
+        customToken,
       });
     } catch (error: any) {
       console.error("Login error:", error);
