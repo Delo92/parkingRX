@@ -130,11 +130,20 @@ Component: `client/src/components/MediaRenderer.tsx` - detects type from URL and
   - Admin notification email receives same approval request simultaneously
   - Patient receives approval confirmation email with dashboard link on doctor approval
 - **Admin Notification Email**: Configurable email address in admin settings that receives all approval requests
+- **Admin Doctor Creation**: One-step doctor account creation (name, email, password + professional details)
+- **Doctor Document Templates**: Upload PDF/image templates per doctor for auto-fill on approval
 - **Auto Document Generation**: Documents auto-generated upon doctor approval with doctor credentials
 - **Auto-Message Triggers**: Automated in-app messages on status changes
 - **Owner Configuration**: Full white-label settings (branding, role names, contact info)
 - **Admin User Management**: Search, filter, and edit user levels/status
 - **Dark/Light Theme**: System-aware with manual toggle
+
+### Doctor Profile Management
+- **Dedicated Doctors Page**: `/dashboard/admin/doctors` and `/dashboard/owner/doctors`
+- **Create Doctor**: Name, email, password + license, NPI, DEA, specialty, phone, fax, address, bio
+- **Document Templates**: Upload PDF/image templates per doctor (stored in Firebase Storage)
+- **Template Management**: View, download, and delete templates per doctor
+- **doctorProfiles**: Firestore collection with `documentTemplates[]` array for uploaded files
 
 ### Application Processing Workflow (Automated)
 
@@ -189,6 +198,10 @@ Manual flow also available: Admin can still manually send applications to specif
 - `GET /api/admin/applications` - List all applications (Level 3+)
 - `GET /api/admin/settings` - Get admin settings including notification email (Level 3+)
 - `PUT /api/admin/settings` - Update admin settings (Level 3+)
+- `POST /api/admin/create-doctor` - Create doctor account + profile in one step (Level 3+)
+- `POST /api/admin/doctor-templates/:doctorProfileId` - Upload document template for doctor (Level 3+)
+- `GET /api/admin/doctor-templates/:doctorProfileId` - List doctor's templates (Level 3+)
+- `DELETE /api/admin/doctor-templates/:doctorProfileId/:templateId` - Delete template (Level 3+)
 - `PUT /api/owner/config` - Update site config (Level 4)
 
 ### Email System (server/email.ts)
@@ -208,5 +221,6 @@ Manual flow also available: Admin can still manually send applications to specif
 - `/dashboard/admin` - Admin dashboard
 - `/dashboard/admin/applications` - All applications with "Send to Doctor" action
 - `/dashboard/admin/users` - User management
+- `/dashboard/admin/doctors` - Doctor management (create, templates)
 - `/dashboard/owner` - Owner dashboard
 - `/dashboard/owner/site-settings` - White-label configuration

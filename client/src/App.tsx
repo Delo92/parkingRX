@@ -27,6 +27,7 @@ const DoctorDashboard = lazy(() => import("@/pages/dashboard/DoctorDashboard"));
 const AdminDashboard = lazy(() => import("@/pages/dashboard/AdminDashboard"));
 const UsersManagement = lazy(() => import("@/pages/dashboard/admin/UsersManagement"));
 const PackagesManagement = lazy(() => import("@/pages/dashboard/admin/PackagesManagement"));
+const DoctorsManagement = lazy(() => import("@/pages/dashboard/admin/DoctorsManagement"));
 const OwnerDashboard = lazy(() => import("@/pages/dashboard/OwnerDashboard"));
 const SiteSettings = lazy(() => import("@/pages/dashboard/owner/SiteSettings"));
 
@@ -180,6 +181,11 @@ function App() {
                       <PackagesManagement />
                     </ProtectedRoute>
                   </Route>
+                  <Route path="/dashboard/admin/doctors">
+                    <ProtectedRoute minLevel={3}>
+                      <DoctorsManagement />
+                    </ProtectedRoute>
+                  </Route>
                   <Route path="/dashboard/admin/applications">
                     <ProtectedRoute minLevel={3}>
                       <SharedApplicationsListPage />
@@ -225,6 +231,11 @@ function App() {
                   <Route path="/dashboard/owner/packages">
                     <ProtectedRoute minLevel={4}>
                       <PackagesManagement />
+                    </ProtectedRoute>
+                  </Route>
+                  <Route path="/dashboard/owner/doctors">
+                    <ProtectedRoute minLevel={4}>
+                      <DoctorsManagement />
                     </ProtectedRoute>
                   </Route>
                   <Route path="/dashboard/owner/applications">

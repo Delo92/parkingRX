@@ -121,6 +121,22 @@ const mediaUpload = multer({
   },
 });
 
+const documentUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 20 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const allowed = [
+      "application/pdf",
+      "image/jpeg", "image/png", "image/gif", "image/webp",
+    ];
+    if (allowed.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error("Only PDF and image files are allowed"));
+    }
+  },
+});
+
 declare global {
   namespace Express {
     interface Request {
@@ -1926,6 +1942,186 @@ export async function registerRoutes(
       if (bio !== undefined) updateData.bio = bio;
       const updated = await storage.updateDoctorProfile(req.params.id as string, updateData);
       res.json(updated);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // ===========================================================================
+  // ADMIN: CREATE DOCTOR (Level 3+)
+  // ===========================================================================
+
+  app.post("/api/admin/create-doctor", requireAuth, requireLevel(3), async (req, res) => {
+    try {
+      const { email, password, firstName, lastName, phone, licenseNumber, npiNumber, deaNumber, specialty, fax, address, bio } = req.body;
+
+      if (!email || !password || !firstName || !lastName) {
+        res.status(400).json({ message: "Email, password, first name, and last name are required" });
+        return;
+      }
+
+      const existingUser = await storage.getUserByEmail(email);
+      if (existingUser) {
+        res.status(400).json({ message: "Email already registered" });
+        return;
+      }
+
+      const passwordHash = await bcrypt.hash(password, 10);
+      const profileId = randomBytes(4).toString("hex").toUpperCase();
+      const userReferralCode = randomBytes(4).toString("hex").toUpperCase();
+
+      const user = await storage.createUser({
+        email,
+        passwordHash,
+        firstName,
+        lastName,
+        phone: phone || null,
+        firebaseUid: null,
+        userLevel: 2,
+        profileId,
+        referralCode: userReferralCode,
+        isActive: true,
+      });
+
+      const doctorProfile = await storage.createDoctorProfile({
+        userId: user.id,
+        firebaseUid: user.firebaseUid || null,
+        fullName: `${firstName} ${lastName}`,
+        licenseNumber: licenseNumber || "",
+        npiNumber: npiNumber || "",
+        deaNumber: deaNumber || "",
+        specialty: specialty || "",
+        phone: phone || "",
+        fax: fax || "",
+        address: address || "",
+        bio: bio || "",
+      });
+
+      await storage.createActivityLog({
+        userId: req.user!.id,
+        action: "doctor_created",
+        entityType: "user",
+        entityId: user.id,
+        details: { createdBy: req.user!.id, doctorEmail: email },
+      });
+
+      res.status(201).json({
+        user: { ...user, passwordHash: undefined },
+        doctorProfile,
+      });
+    } catch (error: any) {
+      console.error("Create doctor error:", error);
+      res.status(500).json({ message: error.message || "Failed to create doctor" });
+    }
+  });
+
+  // ===========================================================================
+  // DOCTOR DOCUMENT TEMPLATES (Level 3+)
+  // ===========================================================================
+
+  app.post("/api/admin/doctor-templates/:doctorProfileId", requireAuth, requireLevel(3), (req, res, next) => {
+    documentUpload.single("file")(req, res, async (err) => {
+      if (err instanceof multer.MulterError) {
+        if (err.code === "LIMIT_FILE_SIZE") {
+          res.status(400).json({ message: "File size must be under 20MB" });
+          return;
+        }
+        res.status(400).json({ message: err.message });
+        return;
+      }
+      if (err) {
+        res.status(400).json({ message: err.message });
+        return;
+      }
+      if (!req.file) {
+        res.status(400).json({ message: "No file uploaded" });
+        return;
+      }
+
+      try {
+        const doctorProfileId = req.params.doctorProfileId as string;
+        const profile = await storage.getDoctorProfile(doctorProfileId);
+        if (!profile) {
+          res.status(404).json({ message: "Doctor profile not found" });
+          return;
+        }
+
+        const bucket = firebaseStorage.bucket();
+        const uniqueSuffix = Date.now() + "-" + randomBytes(4).toString("hex");
+        const ext = req.file.originalname ? "." + req.file.originalname.split(".").pop() : ".pdf";
+        const fileName = `doctor-templates/${doctorProfileId}/${uniqueSuffix}${ext}`;
+        const file = bucket.file(fileName);
+
+        await file.save(req.file.buffer, {
+          metadata: { contentType: req.file.mimetype },
+        });
+
+        await file.makePublic();
+        const url = `https://storage.googleapis.com/${bucket.name}/${fileName}`;
+
+        const templateName = req.body.templateName || req.file.originalname || "Document Template";
+
+        const templates = profile.documentTemplates || [];
+        templates.push({
+          id: uniqueSuffix,
+          name: templateName,
+          url,
+          fileName: req.file.originalname,
+          contentType: req.file.mimetype,
+          uploadedAt: new Date().toISOString(),
+          uploadedBy: req.user!.id,
+        });
+
+        await storage.updateDoctorProfile(doctorProfileId, { documentTemplates: templates });
+
+        res.json({ url, templateId: uniqueSuffix, templates });
+      } catch (error: any) {
+        console.error("Template upload error:", error);
+        res.status(500).json({ message: "Failed to upload template" });
+      }
+    });
+  });
+
+  app.get("/api/admin/doctor-templates/:doctorProfileId", requireAuth, requireLevel(3), async (req, res) => {
+    try {
+      const profile = await storage.getDoctorProfile(req.params.doctorProfileId as string);
+      if (!profile) {
+        res.status(404).json({ message: "Doctor profile not found" });
+        return;
+      }
+      res.json(profile.documentTemplates || []);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.delete("/api/admin/doctor-templates/:doctorProfileId/:templateId", requireAuth, requireLevel(3), async (req, res) => {
+    try {
+      const { doctorProfileId, templateId } = req.params;
+      const profile = await storage.getDoctorProfile(doctorProfileId as string);
+      if (!profile) {
+        res.status(404).json({ message: "Doctor profile not found" });
+        return;
+      }
+
+      const templateToDelete = (profile.documentTemplates || []).find((t: any) => t.id === templateId);
+      if (templateToDelete?.url) {
+        try {
+          const bucket = firebaseStorage.bucket();
+          const urlPath = new URL(templateToDelete.url).pathname;
+          const filePath = urlPath.split(`/${bucket.name}/`)[1];
+          if (filePath) {
+            await bucket.file(decodeURIComponent(filePath)).delete().catch(() => {});
+          }
+        } catch (e) {
+          console.error("Error deleting template file from storage:", e);
+        }
+      }
+
+      const templates = (profile.documentTemplates || []).filter((t: any) => t.id !== templateId);
+      await storage.updateDoctorProfile(doctorProfileId as string, { documentTemplates: templates });
+
+      res.json({ success: true, templates });
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }

@@ -33,6 +33,7 @@ import {
   DollarSign,
   Bell,
   HelpCircle,
+  Stethoscope,
 } from "lucide-react";
 
 interface NavItem {
@@ -82,6 +83,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           { title: "Dashboard", href: "/dashboard/admin", icon: Home },
           { title: "Applications", href: "/dashboard/admin/applications", icon: FileText },
           { title: "Users", href: "/dashboard/admin/users", icon: Users },
+          { title: "Doctors", href: "/dashboard/admin/doctors", icon: Stethoscope },
           { title: "Registration Types", href: "/dashboard/admin/packages", icon: Building2 },
           { title: "Payments", href: "/dashboard/admin/payments", icon: CreditCard },
           { title: "Analytics", href: "/dashboard/admin/analytics", icon: BarChart3 },
@@ -92,6 +94,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
         return [
           { title: "Dashboard", href: "/dashboard/owner", icon: Home },
           { title: "Users", href: "/dashboard/owner/users", icon: Users },
+          { title: "Doctors", href: "/dashboard/owner/doctors", icon: Stethoscope },
           { title: "Orders", href: "/dashboard/owner/applications", icon: FileText },
           { title: "Registration Types", href: "/dashboard/owner/packages", icon: Building2 },
           { title: "Payments", href: "/dashboard/owner/payments", icon: CreditCard },
