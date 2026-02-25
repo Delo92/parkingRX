@@ -1056,6 +1056,110 @@ export async function registerRoutes(
   });
 
   // ===========================================================================
+  // PDF PROXY (for GizmoForm — avoids CORS on CDN-hosted PDF templates)
+  // ===========================================================================
+
+  app.get("/api/forms/proxy-pdf", async (req, res) => {
+    try {
+      const url = req.query.url as string;
+      if (!url) {
+        res.status(400).json({ message: "url query parameter required" });
+        return;
+      }
+      const response = await fetch(url);
+      if (!response.ok) {
+        res.status(502).json({ message: "Failed to fetch PDF from source URL" });
+        return;
+      }
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Cache-Control", "no-store");
+      const buffer = await response.arrayBuffer();
+      res.send(Buffer.from(buffer));
+    } catch (error: any) {
+      console.error("PDF proxy error:", error);
+      res.status(500).json({ message: "Failed to proxy PDF" });
+    }
+  });
+
+  app.get("/api/forms/data/:applicationId", requireAuth, async (req, res) => {
+    try {
+      const application = await storage.getApplication(req.params.applicationId);
+      if (!application) {
+        res.status(404).json({ message: "Application not found" });
+        return;
+      }
+
+      if (application.userId !== req.user!.id && req.user!.userLevel < 3) {
+        res.status(403).json({ message: "Not authorized" });
+        return;
+      }
+
+      const patient = application.userId ? await storage.getUser(application.userId) : null;
+      const formData = (application.formData || {}) as Record<string, any>;
+
+      let doctorProfile: any = null;
+      let gizmoFormUrl: string | null = null;
+
+      if (application.assignedReviewerId) {
+        doctorProfile = await storage.getDoctorProfileByUserId(application.assignedReviewerId);
+        gizmoFormUrl = doctorProfile?.gizmoFormUrl || null;
+      }
+
+      const pkg = application.packageId ? await storage.getPackage(application.packageId) : null;
+
+      const now = new Date();
+      const generatedDate = now.toLocaleDateString("en-US", { year: "numeric", month: "2-digit", day: "2-digit" });
+
+      const patientData: Record<string, string> = {
+        firstName: patient?.firstName || formData.firstName || "",
+        middleName: patient?.middleName || formData.middleName || "",
+        lastName: patient?.lastName || formData.lastName || "",
+        suffix: formData.suffix || "",
+        dateOfBirth: patient?.dateOfBirth || formData.dateOfBirth || "",
+        address: patient?.address || formData.address || "",
+        apt: formData.apt || "",
+        city: patient?.city || formData.city || "",
+        state: patient?.state || formData.state || "",
+        zipCode: patient?.zipCode || formData.zipCode || "",
+        phone: patient?.phone || formData.phone || "",
+        email: patient?.email || formData.email || "",
+        medicalCondition: formData.medicalCondition || patient?.medicalCondition || "",
+        idNumber: formData.driverLicenseNumber || patient?.driverLicenseNumber || "",
+        idExpirationDate: formData.idExpirationDate || "",
+        idType: formData.idType || "",
+      };
+
+      const doctorData: Record<string, string> = {
+        firstName: doctorProfile?.fullName?.split(" ")[0] || "",
+        middleName: "",
+        lastName: doctorProfile?.fullName?.split(" ").slice(1).join(" ") || "",
+        phone: doctorProfile?.phone || "",
+        address: doctorProfile?.address || "",
+        city: "",
+        state: doctorProfile?.state || "",
+        zipCode: "",
+        licenseNumber: doctorProfile?.licenseNumber || "",
+        npiNumber: doctorProfile?.npiNumber || "",
+      };
+
+      const result: any = {
+        success: true,
+        patientData,
+        doctorData,
+        gizmoFormUrl,
+        generatedDate,
+        patientName: `${patientData.firstName} ${patientData.lastName}`.trim(),
+        applicationId: application.id,
+        packageName: pkg?.name || "Service",
+      };
+
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  // ===========================================================================
   // DOCUMENTS ROUTES (User-facing)
   // ===========================================================================
 
