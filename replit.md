@@ -19,7 +19,7 @@ The application is a full-stack TypeScript project. The frontend uses React, whi
 - **Application Workflow**: A structured process from registration, permit type selection, information review, submission, automated doctor assignment, medical review, permit generation, and delivery.
 - **Automated Doctor Assignment**: Global round-robin system for assigning applications to doctors.
 - **Secure Doctor Review System**: Doctors review applications via secure, token-based links without requiring login.
-- **Automated Document Generation**: Permits are automatically generated upon doctor approval, incorporating doctor credentials.
+- **Automated Document Generation**: Permits are auto-generated upon doctor approval using the doctor's HTML form template with 26 placeholder tags (e.g., `{{patientName}}`, `{{doctorLicense}}`). Falls back to a default template if no custom template is set. Generated HTML is stored in document metadata and served via `/api/documents/:id/html` for viewing/printing.
 - **Email Notifications**: Automated transactional emails for doctor approval requests, admin notifications, and patient approval confirmations via SendGrid.
 - **White-Label Configuration**: Owner role has full control over branding, role names, contact info, and site media.
 - **Dynamic Form Fields**: Admins can define custom required fields per service package.

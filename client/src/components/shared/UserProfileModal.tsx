@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -46,7 +46,9 @@ import {
   Send,
   StickyNote,
   PhoneCall,
-  Edit3
+  Edit3,
+  Stethoscope,
+  Info
 } from "lucide-react";
 
 type ApplicationWithPackage = Application & {
@@ -63,6 +65,35 @@ interface UserProfileModalProps {
   canEditLevel?: boolean;
 }
 
+const PLACEHOLDERS_REFERENCE = [
+  { tag: "{{doctorName}}", desc: "Doctor's full name" },
+  { tag: "{{doctorLicense}}", desc: "License number" },
+  { tag: "{{doctorNPI}}", desc: "NPI number" },
+  { tag: "{{doctorDEA}}", desc: "DEA number" },
+  { tag: "{{doctorPhone}}", desc: "Doctor phone" },
+  { tag: "{{doctorFax}}", desc: "Doctor fax" },
+  { tag: "{{doctorAddress}}", desc: "Doctor address" },
+  { tag: "{{doctorSpecialty}}", desc: "Specialty" },
+  { tag: "{{doctorState}}", desc: "Doctor state" },
+  { tag: "{{patientName}}", desc: "Patient full name" },
+  { tag: "{{patientFirstName}}", desc: "First name" },
+  { tag: "{{patientLastName}}", desc: "Last name" },
+  { tag: "{{patientDOB}}", desc: "Date of birth" },
+  { tag: "{{patientPhone}}", desc: "Patient phone" },
+  { tag: "{{patientEmail}}", desc: "Patient email" },
+  { tag: "{{patientAddress}}", desc: "Patient street" },
+  { tag: "{{patientCity}}", desc: "Patient city" },
+  { tag: "{{patientState}}", desc: "Patient state" },
+  { tag: "{{patientZipCode}}", desc: "Patient zip" },
+  { tag: "{{patientSSN}}", desc: "Patient SSN" },
+  { tag: "{{patientDriverLicense}}", desc: "Driver license #" },
+  { tag: "{{patientMedicalCondition}}", desc: "Medical condition" },
+  { tag: "{{reason}}", desc: "Reason for note" },
+  { tag: "{{packageName}}", desc: "Note type name" },
+  { tag: "{{date}}", desc: "Today (long format)" },
+  { tag: "{{dateShort}}", desc: "Today (short)" },
+];
+
 export function UserProfileModal({ user: selectedUser, onClose, canEditLevel = true }: UserProfileModalProps) {
   const { user: currentUser } = useAuth();
   const { getLevelName } = useConfig();
@@ -72,6 +103,10 @@ export function UserProfileModal({ user: selectedUser, onClose, canEditLevel = t
   const [newLevel, setNewLevel] = useState<string>("");
   const [newStatus, setNewStatus] = useState<string>("");
   const [newNote, setNewNote] = useState("");
+  const [showPlaceholders, setShowPlaceholders] = useState(false);
+  const [doctorProfileData, setDoctorProfileData] = useState<Record<string, any>>({});
+
+  const isUserDoctor = selectedUser?.userLevel === 2;
 
   const { data: userApplications, isLoading: appsLoading } = useQuery<ApplicationWithPackage[]>({
     queryKey: ["/api/admin/users", selectedUser?.id, "applications"],
@@ -111,6 +146,46 @@ export function UserProfileModal({ user: selectedUser, onClose, canEditLevel = t
       return response.json();
     },
   });
+
+  const { data: doctorProfile, refetch: refetchDoctorProfile } = useQuery({
+    queryKey: ["/api/doctor-profiles", selectedUser?.id],
+    enabled: !!selectedUser && isUserDoctor,
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/doctor-profiles");
+      const profiles = await res.json();
+      return profiles.find((p: any) => p.userId === selectedUser!.id) || null;
+    },
+  });
+
+  useEffect(() => {
+    if (doctorProfile) {
+      setDoctorProfileData({
+        fullName: doctorProfile.fullName || "",
+        licenseNumber: doctorProfile.licenseNumber || "",
+        npiNumber: doctorProfile.npiNumber || "",
+        deaNumber: doctorProfile.deaNumber || "",
+        specialty: doctorProfile.specialty || "",
+        phone: doctorProfile.phone || "",
+        fax: doctorProfile.fax || "",
+        address: doctorProfile.address || "",
+        state: doctorProfile.state || "",
+        formTemplate: doctorProfile.formTemplate || "",
+      });
+    } else if (selectedUser && isUserDoctor) {
+      setDoctorProfileData({
+        fullName: `${selectedUser.firstName} ${selectedUser.lastName}`,
+        licenseNumber: "",
+        npiNumber: "",
+        deaNumber: "",
+        specialty: "",
+        phone: selectedUser.phone || "",
+        fax: "",
+        address: "",
+        state: "",
+        formTemplate: "",
+      });
+    }
+  }, [doctorProfile, selectedUser, isUserDoctor]);
 
   const updateUser = useMutation({
     mutationFn: async ({ id, updates }: { id: string; updates: Partial<User> }) => {
@@ -157,6 +232,31 @@ export function UserProfileModal({ user: selectedUser, onClose, canEditLevel = t
     },
   });
 
+  const saveDoctorProfile = useMutation({
+    mutationFn: async ({ profileId, data, userId }: { profileId?: string; data: Record<string, any>; userId: string }) => {
+      if (profileId) {
+        return apiRequest("PUT", `/api/doctor-profiles/${profileId}`, data);
+      } else {
+        return apiRequest("POST", `/api/doctor-profiles`, { ...data, userId });
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/doctor-profiles"] });
+      refetchDoctorProfile();
+      toast({
+        title: "Doctor Profile Saved",
+        description: "Doctor credentials and template have been updated.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Save Failed",
+        description: error.message || "Something went wrong",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleOpenProfile = () => {
     if (selectedUser) {
       setEditedUser({
@@ -191,6 +291,15 @@ export function UserProfileModal({ user: selectedUser, onClose, canEditLevel = t
       }
       updateUser.mutate({ id: selectedUser.id, updates });
     }
+  };
+
+  const handleSaveDoctorProfile = () => {
+    if (!selectedUser) return;
+    saveDoctorProfile.mutate({
+      profileId: doctorProfile?.id,
+      data: doctorProfileData,
+      userId: selectedUser.id,
+    });
   };
 
   const handleAddNote = () => {
@@ -235,7 +344,6 @@ export function UserProfileModal({ user: selectedUser, onClose, canEditLevel = t
           </DialogDescription>
         </DialogHeader>
 
-        {/* Edit tracking info */}
         {selectedUser?.lastEditedBy && selectedUser?.lastEditedAt && (
           <div className="text-xs text-red-500 flex items-center gap-1">
             <Edit3 className="h-3 w-3" />
@@ -248,13 +356,18 @@ export function UserProfileModal({ user: selectedUser, onClose, canEditLevel = t
             <TabsTrigger value="profile" className="flex-1" data-testid="tab-profile">Profile</TabsTrigger>
             <TabsTrigger value="purchases" className="flex-1" data-testid="tab-purchases">Purchases</TabsTrigger>
             <TabsTrigger value="notes" className="flex-1" data-testid="tab-notes">Notes</TabsTrigger>
+            {isUserDoctor && (
+              <TabsTrigger value="doctor" className="flex-1" data-testid="tab-doctor">
+                <Stethoscope className="h-3 w-3 mr-1" />
+                Doctor
+              </TabsTrigger>
+            )}
             {canEditLevel && (
               <TabsTrigger value="settings" className="flex-1" data-testid="tab-settings">Settings</TabsTrigger>
             )}
           </TabsList>
 
           <ScrollArea className="h-[400px] mt-4">
-            {/* Profile Tab */}
             <TabsContent value="profile" className="space-y-4 pr-4">
               <div className="flex items-center justify-between">
                 <h3 className="text-lg font-semibold">Personal Information</h3>
@@ -426,7 +539,6 @@ export function UserProfileModal({ user: selectedUser, onClose, canEditLevel = t
                 </div>
               )}
 
-              {/* Quick Actions */}
               <Separator />
               <h3 className="text-lg font-semibold">Quick Actions</h3>
               <div className="flex flex-wrap gap-2">
@@ -449,7 +561,6 @@ export function UserProfileModal({ user: selectedUser, onClose, canEditLevel = t
               </div>
             </TabsContent>
 
-            {/* Purchases Tab */}
             <TabsContent value="purchases" className="space-y-4 pr-4">
               <h3 className="text-lg font-semibold flex items-center gap-2">
                 <Package className="h-5 w-5" /> Purchases & Applications
@@ -509,7 +620,6 @@ export function UserProfileModal({ user: selectedUser, onClose, canEditLevel = t
               )}
             </TabsContent>
 
-            {/* Notes Tab */}
             <TabsContent value="notes" className="space-y-4 pr-4">
               <h3 className="text-lg font-semibold flex items-center gap-2">
                 <StickyNote className="h-5 w-5" /> Notes
@@ -570,7 +680,188 @@ export function UserProfileModal({ user: selectedUser, onClose, canEditLevel = t
               </div>
             </TabsContent>
 
-            {/* Settings Tab */}
+            {isUserDoctor && (
+              <TabsContent value="doctor" className="space-y-4 pr-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-lg font-semibold flex items-center gap-2">
+                    <Stethoscope className="h-5 w-5" /> Doctor Profile
+                  </h3>
+                  {doctorProfile ? (
+                    <Badge variant={doctorProfile.isActive !== false ? "default" : "destructive"}>
+                      {doctorProfile.isActive !== false ? "Active" : "Inactive"}
+                    </Badge>
+                  ) : null}
+                </div>
+
+                {!doctorProfile && (
+                  <div className="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-md text-sm text-amber-700 dark:text-amber-300 flex items-start gap-2">
+                    <AlertCircle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                    <span>No doctor profile exists yet. Fill in the details below and save to create one.</span>
+                  </div>
+                )}
+
+                <h4 className="text-sm font-semibold text-muted-foreground">Credentials</h4>
+
+                <div className="space-y-3">
+                  <div className="space-y-1.5">
+                    <Label>Full Name (on documents)</Label>
+                    <Input
+                      value={doctorProfileData.fullName || ""}
+                      onChange={(e) => setDoctorProfileData({ ...doctorProfileData, fullName: e.target.value })}
+                      placeholder="Dr. Jane Smith, MD"
+                      data-testid="input-doctor-fullname"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label>License Number</Label>
+                      <Input
+                        value={doctorProfileData.licenseNumber || ""}
+                        onChange={(e) => setDoctorProfileData({ ...doctorProfileData, licenseNumber: e.target.value })}
+                        placeholder="License #"
+                        data-testid="input-doctor-license"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>NPI Number</Label>
+                      <Input
+                        value={doctorProfileData.npiNumber || ""}
+                        onChange={(e) => setDoctorProfileData({ ...doctorProfileData, npiNumber: e.target.value })}
+                        placeholder="NPI #"
+                        data-testid="input-doctor-npi"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label>DEA Number</Label>
+                      <Input
+                        value={doctorProfileData.deaNumber || ""}
+                        onChange={(e) => setDoctorProfileData({ ...doctorProfileData, deaNumber: e.target.value })}
+                        placeholder="DEA #"
+                        data-testid="input-doctor-dea"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Specialty</Label>
+                      <Input
+                        value={doctorProfileData.specialty || ""}
+                        onChange={(e) => setDoctorProfileData({ ...doctorProfileData, specialty: e.target.value })}
+                        placeholder="e.g., Family Medicine"
+                        data-testid="input-doctor-specialty"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <Label>Office Phone</Label>
+                      <Input
+                        value={doctorProfileData.phone || ""}
+                        onChange={(e) => setDoctorProfileData({ ...doctorProfileData, phone: e.target.value })}
+                        placeholder="Office phone"
+                        data-testid="input-doctor-phone"
+                      />
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label>Fax</Label>
+                      <Input
+                        value={doctorProfileData.fax || ""}
+                        onChange={(e) => setDoctorProfileData({ ...doctorProfileData, fax: e.target.value })}
+                        placeholder="Fax number"
+                        data-testid="input-doctor-fax"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label>Office Address</Label>
+                    <Input
+                      value={doctorProfileData.address || ""}
+                      onChange={(e) => setDoctorProfileData({ ...doctorProfileData, address: e.target.value })}
+                      placeholder="Full office address"
+                      data-testid="input-doctor-address"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <Label>State</Label>
+                    <Input
+                      value={doctorProfileData.state || ""}
+                      onChange={(e) => setDoctorProfileData({ ...doctorProfileData, state: e.target.value })}
+                      placeholder="e.g., Oklahoma"
+                      data-testid="input-doctor-state"
+                    />
+                  </div>
+                </div>
+
+                <Separator />
+
+                <h4 className="text-sm font-semibold text-muted-foreground flex items-center gap-1.5">
+                  <FileText className="h-4 w-4" />
+                  Form Template
+                </h4>
+
+                <div className="p-3 bg-muted/50 border rounded-md text-sm text-muted-foreground flex items-start gap-2">
+                  <Info className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                  <span>
+                    Use placeholder tags like <code className="bg-muted px-1 rounded font-mono text-xs">{"{{patientName}}"}</code> in your HTML template. They will be replaced with real data when a document is generated upon approval.
+                  </span>
+                </div>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowPlaceholders(!showPlaceholders)}
+                  data-testid="button-toggle-placeholders"
+                >
+                  {showPlaceholders ? "Hide" : "Show"} Available Placeholders
+                </Button>
+
+                {showPlaceholders && (
+                  <div className="border rounded-md p-3 bg-muted/30">
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
+                      {PLACEHOLDERS_REFERENCE.map((p) => (
+                        <div key={p.tag} className="flex items-center justify-between py-0.5">
+                          <code className="font-mono bg-muted px-1 rounded">{p.tag}</code>
+                          <span className="text-muted-foreground ml-2">{p.desc}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="space-y-1.5">
+                  <Label>HTML Form Template</Label>
+                  <Textarea
+                    value={doctorProfileData.formTemplate || ""}
+                    onChange={(e) => setDoctorProfileData({ ...doctorProfileData, formTemplate: e.target.value })}
+                    placeholder={"<html>\n<body>\n  <h1>Medical Document</h1>\n  <p>Patient: {{patientName}}</p>\n  <p>Doctor: {{doctorName}}</p>\n</body>\n</html>"}
+                    className="min-h-[200px] font-mono text-xs"
+                    data-testid="input-doctor-form-template"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    This HTML template will be used to generate documents when the doctor approves an application.
+                  </p>
+                </div>
+
+                <Button
+                  onClick={handleSaveDoctorProfile}
+                  disabled={saveDoctorProfile.isPending}
+                  className="w-full"
+                  data-testid="button-save-doctor-profile"
+                >
+                  {saveDoctorProfile.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                  ) : null}
+                  {doctorProfile ? "Update Doctor Profile" : "Create Doctor Profile"}
+                </Button>
+              </TabsContent>
+            )}
+
             {canEditLevel && (
               <TabsContent value="settings" className="space-y-4 pr-4">
                 <h3 className="text-lg font-semibold">Account Settings</h3>

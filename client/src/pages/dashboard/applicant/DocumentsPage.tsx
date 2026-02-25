@@ -5,14 +5,6 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -21,19 +13,48 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
+import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, FileText, Download, Trash2, Eye, FolderOpen } from "lucide-react";
+import { Upload, FileText, Eye, FolderOpen, Printer, Calendar, Loader2 } from "lucide-react";
+import { auth } from "@/lib/firebase";
+
+interface DocumentRecord {
+  id: string;
+  applicationId: string;
+  userId: string;
+  name: string;
+  type: string;
+  status: string;
+  fileUrl: string;
+  metadata: any;
+  createdAt: string;
+}
 
 export default function DocumentsPage() {
+  const { user } = useAuth();
   const { toast } = useToast();
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
-  // This would fetch from /api/documents when that endpoint exists
-  const { data: documents, isLoading } = useQuery<any[]>({
+  const { data: documents, isLoading } = useQuery<DocumentRecord[]>({
     queryKey: ["/api/documents"],
-    enabled: false, // Disabled until endpoint is implemented
   });
+
+  const completedDocs = documents?.filter((d) => d.status === "completed") || [];
+  const otherDocs = documents?.filter((d) => d.status !== "completed") || [];
+
+  const handleViewDocument = async (doc: DocumentRecord) => {
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      if (!token) {
+        toast({ title: "Not authenticated", description: "Please log in again.", variant: "destructive" });
+        return;
+      }
+      window.open(`/api/documents/${doc.id}/html?token=${encodeURIComponent(token)}`, "_blank");
+    } catch {
+      toast({ title: "Error", description: "Failed to open document.", variant: "destructive" });
+    }
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -78,22 +99,104 @@ export default function DocumentsPage() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {/* Empty state */}
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted mb-4">
-                <FolderOpen className="h-8 w-8 text-muted-foreground" />
+            {isLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
               </div>
-              <h3 className="text-lg font-semibold mb-2">No certificates yet</h3>
-              <p className="text-muted-foreground mb-4 max-w-sm">
-                Your completed certifications will appear here for download once your registration is processed.
-              </p>
-              <Button onClick={() => setIsUploadOpen(true)}>
-                <Upload className="mr-2 h-4 w-4" />
-                Upload Supporting Document
-              </Button>
-            </div>
+            ) : completedDocs.length > 0 ? (
+              <div className="space-y-3">
+                {completedDocs.map((doc) => (
+                  <div
+                    key={doc.id}
+                    className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/30 transition-colors"
+                    data-testid={`document-${doc.id}`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-100 dark:bg-green-900/30">
+                        <FileText className="h-5 w-5 text-green-600 dark:text-green-400" />
+                      </div>
+                      <div>
+                        <p className="font-medium" data-testid={`text-doc-name-${doc.id}`}>{doc.name}</p>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <Calendar className="h-3 w-3" />
+                          {new Date(doc.createdAt).toLocaleDateString()}
+                          {doc.metadata?.doctorName && (
+                            <span>- Certified by {doc.metadata.doctorName}</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge className="bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                        Ready
+                      </Badge>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleViewDocument(doc)}
+                        data-testid={`button-view-doc-${doc.id}`}
+                      >
+                        <Eye className="h-4 w-4 mr-1" />
+                        View
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={() => handleViewDocument(doc)}
+                        data-testid={`button-print-doc-${doc.id}`}
+                      >
+                        <Printer className="h-4 w-4 mr-1" />
+                        Print / PDF
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <div className="flex h-16 w-16 items-center justify-center rounded-full bg-muted mb-4">
+                  <FolderOpen className="h-8 w-8 text-muted-foreground" />
+                </div>
+                <h3 className="text-lg font-semibold mb-2">No certificates yet</h3>
+                <p className="text-muted-foreground mb-4 max-w-sm">
+                  Your completed certifications will appear here for download once your registration is processed and approved by a medical professional.
+                </p>
+              </div>
+            )}
           </CardContent>
         </Card>
+
+        {otherDocs.length > 0 && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Processing Documents</CardTitle>
+              <CardDescription>
+                Documents currently being prepared
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {otherDocs.map((doc) => (
+                  <div
+                    key={doc.id}
+                    className="flex items-center justify-between p-3 border rounded-lg"
+                    data-testid={`document-pending-${doc.id}`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <FileText className="h-5 w-5 text-muted-foreground" />
+                      <div>
+                        <p className="font-medium">{doc.name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {new Date(doc.createdAt).toLocaleDateString()}
+                        </p>
+                      </div>
+                    </div>
+                    <Badge variant="secondary">{doc.status}</Badge>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         <Card>
           <CardHeader>
@@ -128,7 +231,6 @@ export default function DocumentsPage() {
           </CardContent>
         </Card>
 
-        {/* Upload Dialog */}
         <Dialog open={isUploadOpen} onOpenChange={setIsUploadOpen}>
           <DialogContent>
             <DialogHeader>
