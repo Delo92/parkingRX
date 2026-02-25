@@ -1,13 +1,15 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Link } from "wouter";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Form,
   FormControl,
@@ -27,7 +29,8 @@ import {
 import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Save, ShoppingCart } from "lucide-react";
+import { apiRequest } from "@/lib/queryClient";
+import { Loader2, Save, ShoppingCart, CheckCircle2, AlertCircle } from "lucide-react";
 
 const US_STATES = [
   "Alabama", "Alaska", "Arizona", "Arkansas", "California", "Colorado", "Connecticut",
@@ -45,46 +48,73 @@ const registrationSchema = z.object({
   middleName: z.string().optional(),
   lastName: z.string().min(1, "Last name is required"),
   email: z.string().email("Invalid email address"),
-  phone: z.string().optional(),
-  dateOfBirth: z.string().optional(),
-  address: z.string().optional(),
-  city: z.string().optional(),
-  state: z.string().optional(),
-  zipCode: z.string().optional(),
+  phone: z.string().min(1, "Phone number is required"),
+  dateOfBirth: z.string().min(1, "Date of birth is required"),
+  driverLicenseNumber: z.string().optional(),
+  address: z.string().min(1, "Street address is required"),
+  city: z.string().min(1, "City is required"),
+  state: z.string().min(1, "State is required"),
+  zipCode: z.string().min(1, "ZIP code is required"),
   medicalCondition: z.string().optional(),
   hasMedicare: z.boolean().default(false),
   ssn: z.string().optional(),
   isVeteran: z.boolean().default(false),
-  smsConsent: z.boolean().default(false),
-  emailConsent: z.boolean().default(false),
-  chargeUnderstanding: z.boolean().default(false),
-  patientAuthorization: z.boolean().default(false),
+  referralCode: z.string().optional(),
+  smsConsent: z.boolean().refine(val => val === true, { message: "SMS consent is required to use our services" }),
+  emailConsent: z.boolean().refine(val => val === true, { message: "Email consent is required to use our services" }),
+  chargeUnderstanding: z.boolean().refine(val => val === true, { message: "You must acknowledge the charge information" }),
+  patientAuthorization: z.boolean().refine(val => val === true, { message: "Authorization is required" }),
 });
 
 type RegistrationFormData = z.infer<typeof registrationSchema>;
 
+function isProfileComplete(data: any): boolean {
+  return !!(
+    data?.firstName &&
+    data?.lastName &&
+    data?.phone &&
+    data?.dateOfBirth &&
+    data?.address &&
+    data?.city &&
+    data?.state &&
+    data?.zipCode &&
+    data?.smsConsent &&
+    data?.emailConsent &&
+    data?.chargeUnderstanding &&
+    data?.patientAuthorization
+  );
+}
+
 export default function RegistrationPage() {
-  const { user } = useAuth();
+  const { user, refreshUser, getIdToken } = useAuth();
   const { toast } = useToast();
   const [isSaving, setIsSaving] = useState(false);
+
+  const { data: profile, isLoading: profileLoading } = useQuery<any>({
+    queryKey: ["/api/profile"],
+  });
+
+  const profileComplete = isProfileComplete(profile);
 
   const form = useForm<RegistrationFormData>({
     resolver: zodResolver(registrationSchema),
     defaultValues: {
-      firstName: user?.firstName || "",
+      firstName: "",
       middleName: "",
-      lastName: user?.lastName || "",
-      email: user?.email || "",
-      phone: user?.phone || "",
-      dateOfBirth: user?.dateOfBirth || "",
-      address: user?.address || "",
-      city: user?.city || "",
-      state: user?.state || "",
-      zipCode: user?.zipCode || "",
+      lastName: "",
+      email: "",
+      phone: "",
+      dateOfBirth: "",
+      driverLicenseNumber: "",
+      address: "",
+      city: "",
+      state: "",
+      zipCode: "",
       medicalCondition: "",
       hasMedicare: false,
       ssn: "",
       isVeteran: false,
+      referralCode: "",
       smsConsent: false,
       emailConsent: false,
       chargeUnderstanding: false,
@@ -92,17 +122,66 @@ export default function RegistrationPage() {
     },
   });
 
+  useEffect(() => {
+    if (profile) {
+      form.reset({
+        firstName: profile.firstName || "",
+        middleName: profile.middleName || "",
+        lastName: profile.lastName || "",
+        email: profile.email || "",
+        phone: profile.phone || "",
+        dateOfBirth: profile.dateOfBirth || "",
+        driverLicenseNumber: profile.driverLicenseNumber || "",
+        address: profile.address || "",
+        city: profile.city || "",
+        state: profile.state || "",
+        zipCode: profile.zipCode || "",
+        medicalCondition: profile.medicalCondition || "",
+        hasMedicare: profile.hasMedicare || false,
+        ssn: profile.ssn || "",
+        isVeteran: profile.isVeteran || false,
+        referralCode: profile.referralCode || "",
+        smsConsent: profile.smsConsent || false,
+        emailConsent: profile.emailConsent || false,
+        chargeUnderstanding: profile.chargeUnderstanding || false,
+        patientAuthorization: profile.patientAuthorization || false,
+      });
+    }
+  }, [profile]);
+
   const onSubmit = async (data: RegistrationFormData) => {
     setIsSaving(true);
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    toast({
-      title: "Profile Saved",
-      description: "Your profile information has been updated.",
-    });
-    setIsSaving(false);
+    try {
+      const { email, ...profileData } = data;
+      await apiRequest("PUT", "/api/profile", {
+        ...profileData,
+        registrationComplete: true,
+      });
+      await refreshUser();
+      toast({
+        title: "Profile Saved",
+        description: "Your profile information has been saved successfully.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Save Failed",
+        description: error.message || "Could not save your profile. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  if (!user) return null;
+  if (!user || profileLoading) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>
@@ -113,26 +192,45 @@ export default function RegistrationPage() {
               My Profile
             </h1>
             <p className="text-muted-foreground">
-              Review and update your personal details
+              Complete your profile to apply for a handicap parking permit
             </p>
           </div>
           <Link href="/packages">
-            <Button data-testid="button-buy-package">
+            <Button data-testid="button-buy-package" disabled={!profileComplete}>
               <ShoppingCart className="mr-2 h-4 w-4" />
               Apply for Permit
             </Button>
           </Link>
         </div>
 
+        {profileComplete ? (
+          <Alert className="border-green-500/50 bg-green-500/10">
+            <CheckCircle2 className="h-4 w-4 text-green-600" />
+            <AlertDescription className="text-green-700 dark:text-green-400" data-testid="text-profile-complete">
+              Your profile is complete. You can now apply for a handicap parking permit.
+            </AlertDescription>
+          </Alert>
+        ) : (
+          <Alert className="border-amber-500/50 bg-amber-500/10">
+            <AlertCircle className="h-4 w-4 text-amber-600" />
+            <AlertDescription className="text-amber-700 dark:text-amber-400" data-testid="text-profile-incomplete">
+              Please complete all required fields and consent checkboxes below before applying for a permit.
+            </AlertDescription>
+          </Alert>
+        )}
+
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-            {/* Account Information */}
             <Card>
               <CardHeader>
                 <CardTitle>Account Information</CardTitle>
                 <CardDescription>Your account login details</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">Username</label>
+                  <p className="text-sm mt-1" data-testid="text-username">Will be generated from email</p>
+                </div>
                 <FormField
                   control={form.control}
                   name="email"
@@ -140,7 +238,7 @@ export default function RegistrationPage() {
                     <FormItem>
                       <FormLabel>Email</FormLabel>
                       <FormControl>
-                        <Input type="email" data-testid="input-email" {...field} />
+                        <Input type="email" disabled data-testid="input-email" {...field} />
                       </FormControl>
                       <FormDescription>Please ensure you have personal access to this email.</FormDescription>
                       <FormMessage />
@@ -150,11 +248,10 @@ export default function RegistrationPage() {
               </CardContent>
             </Card>
 
-            {/* Personal Information */}
             <Card>
               <CardHeader>
                 <CardTitle>Personal Information</CardTitle>
-                <CardDescription>This information will be used on your certifications</CardDescription>
+                <CardDescription>This information will be used on your medical forms</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="grid gap-4 md:grid-cols-3">
@@ -163,9 +260,9 @@ export default function RegistrationPage() {
                     name="firstName"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>First Name</FormLabel>
+                        <FormLabel>First Name <span className="text-destructive">*</span></FormLabel>
                         <FormControl>
-                          <Input data-testid="input-first-name" {...field} />
+                          <Input placeholder="Enter your first name" data-testid="input-first-name" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -178,7 +275,7 @@ export default function RegistrationPage() {
                       <FormItem>
                         <FormLabel>Middle Name (Optional)</FormLabel>
                         <FormControl>
-                          <Input data-testid="input-middle-name" {...field} />
+                          <Input placeholder="Enter your middle name" data-testid="input-middle-name" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -189,9 +286,9 @@ export default function RegistrationPage() {
                     name="lastName"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Last Name</FormLabel>
+                        <FormLabel>Last Name <span className="text-destructive">*</span></FormLabel>
                         <FormControl>
-                          <Input data-testid="input-last-name" {...field} />
+                          <Input placeholder="Enter your last name" data-testid="input-last-name" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -205,9 +302,9 @@ export default function RegistrationPage() {
                     name="phone"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Phone Number</FormLabel>
+                        <FormLabel>Phone Number <span className="text-destructive">*</span></FormLabel>
                         <FormControl>
-                          <Input type="tel" placeholder="(555) 555-5555" data-testid="input-phone" {...field} />
+                          <Input type="tel" placeholder="Enter your phone number" data-testid="input-phone" {...field} />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -218,7 +315,7 @@ export default function RegistrationPage() {
                     name="dateOfBirth"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Date of Birth</FormLabel>
+                        <FormLabel>Date of Birth <span className="text-destructive">*</span></FormLabel>
                         <FormControl>
                           <Input type="date" data-testid="input-dob" {...field} />
                         </FormControl>
@@ -230,12 +327,11 @@ export default function RegistrationPage() {
               </CardContent>
             </Card>
 
-            {/* Address Information */}
             <Card>
               <CardHeader>
                 <CardTitle>Address Information</CardTitle>
                 <CardDescription>
-                  Please verify your address does not have a P.O. Box. This information will be used on your certifications.
+                  Please verify your address does not have a P.O. Box. You WILL BE DENIED if you use a P.O. Box. This information will be used on your medical forms.
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
@@ -244,7 +340,7 @@ export default function RegistrationPage() {
                   name="address"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Street Address</FormLabel>
+                      <FormLabel>Street Address <span className="text-destructive">*</span></FormLabel>
                       <FormControl>
                         <Input placeholder="Enter your street address" data-testid="input-address" {...field} />
                       </FormControl>
@@ -258,7 +354,7 @@ export default function RegistrationPage() {
                     name="city"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>City</FormLabel>
+                        <FormLabel>City <span className="text-destructive">*</span></FormLabel>
                         <FormControl>
                           <Input placeholder="Enter your city" data-testid="input-city" {...field} />
                         </FormControl>
@@ -271,16 +367,16 @@ export default function RegistrationPage() {
                     name="state"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>State</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <FormLabel>State <span className="text-destructive">*</span></FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value}>
                           <FormControl>
                             <SelectTrigger data-testid="select-state">
                               <SelectValue placeholder="Select state" />
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            {US_STATES.map((state) => (
-                              <SelectItem key={state} value={state}>{state}</SelectItem>
+                            {US_STATES.map((st) => (
+                              <SelectItem key={st} value={st}>{st}</SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
@@ -293,7 +389,7 @@ export default function RegistrationPage() {
                     name="zipCode"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>ZIP Code</FormLabel>
+                        <FormLabel>ZIP Code <span className="text-destructive">*</span></FormLabel>
                         <FormControl>
                           <Input placeholder="Enter your ZIP code" data-testid="input-zip" {...field} />
                         </FormControl>
@@ -305,10 +401,9 @@ export default function RegistrationPage() {
               </CardContent>
             </Card>
 
-            {/* Medical Information */}
             <Card>
               <CardHeader>
-                <CardTitle>Animal Information (Optional)</CardTitle>
+                <CardTitle>Medical Information</CardTitle>
                 <CardDescription>
                   This is optional. You can provide this information now or update it later in your profile.
                 </CardDescription>
@@ -319,14 +414,34 @@ export default function RegistrationPage() {
                   name="medicalCondition"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Animal Type and Details</FormLabel>
+                      <FormLabel>Medical Condition or Reason for Permit</FormLabel>
                       <FormControl>
-                        <Textarea 
-                          placeholder="E.g., Dog - Golden Retriever, Cat - Domestic Shorthair... (optional)"
+                        <Textarea
+                          placeholder="E.g., Chronic pain, mobility impairment, post-surgery recovery... (optional)"
                           data-testid="input-medical-condition"
                           {...field}
                         />
                       </FormControl>
+                      <FormDescription>
+                        If you're not sure what your state's qualifying conditions are, you can leave this blank and provide it later.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="driverLicenseNumber"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Driver's License / ID Number</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Enter your driver's license or state ID number" data-testid="input-driver-license" {...field} />
+                      </FormControl>
+                      <FormDescription>
+                        Required for Oklahoma Forms 302DC and 750-C. You can add this now or update it later.
+                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -347,7 +462,7 @@ export default function RegistrationPage() {
                       <div className="space-y-1 leading-none">
                         <FormLabel>Do you have Medicare/Medicaid?</FormLabel>
                         <FormDescription>
-                          This helps us provide you with information about potential cost savings.
+                          This helps us provide you with information about potential cost savings on state application fees.
                         </FormDescription>
                       </div>
                     </FormItem>
@@ -361,9 +476,9 @@ export default function RegistrationPage() {
                     <FormItem>
                       <FormLabel>Social Security Number (Optional)</FormLabel>
                       <FormControl>
-                        <Input placeholder="XXX-XX-XXXX" data-testid="input-ssn" {...field} />
+                        <Input placeholder="123-45-6789" data-testid="input-ssn" {...field} />
                       </FormControl>
-                      <FormDescription>Some states require this information for the application process.</FormDescription>
+                      <FormDescription>Some states request this information for the application process. Format: XXX-XX-XXXX</FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -393,11 +508,34 @@ export default function RegistrationPage() {
               </CardContent>
             </Card>
 
-            {/* Communication Consent */}
             <Card>
               <CardHeader>
-                <CardTitle>Communication Consent</CardTitle>
-                <CardDescription>Required consents for processing your order</CardDescription>
+                <CardTitle>Referral Code (Optional)</CardTitle>
+                <CardDescription>Have a referral code? Enter it here to get personalized service.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <FormField
+                  control={form.control}
+                  name="referralCode"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Referral Code</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Enter referral code (e.g., SMITH2025)" data-testid="input-referral-code" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Communication Consent (Required)</CardTitle>
+                <CardDescription>
+                  Both SMS and email consent are required to use our services. These communications are essential for coordinating your healthcare consultations and ensuring timely updates about your care.
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <FormField
@@ -413,10 +551,11 @@ export default function RegistrationPage() {
                         />
                       </FormControl>
                       <div className="space-y-1 leading-none">
-                        <FormLabel>SMS/Text Message Consent</FormLabel>
+                        <FormLabel>SMS/Text Message Consent <span className="text-destructive">*</span></FormLabel>
                         <FormDescription>
-                          I consent to receive text messages for appointment reminders, consultation notifications, and account updates.
+                          I consent to receive text messages (SMS/MMS) at the phone number provided for appointment reminders, consultation notifications, account updates, and service-related communications. Message and data rates may apply. I can reply STOP to opt out at any time.
                         </FormDescription>
+                        <FormMessage />
                       </div>
                     </FormItem>
                   )}
@@ -435,10 +574,11 @@ export default function RegistrationPage() {
                         />
                       </FormControl>
                       <div className="space-y-1 leading-none">
-                        <FormLabel>Email Communication Consent</FormLabel>
+                        <FormLabel>Email Communication Consent <span className="text-destructive">*</span></FormLabel>
                         <FormDescription>
-                          I consent to receive emails for appointment notifications, account updates, service announcements, and related communications.
+                          I consent to receive emails at the email address provided for appointment notifications, account updates, service announcements, and healthcare-related communications. I can unsubscribe from non-essential emails at any time by clicking the unsubscribe link.
                         </FormDescription>
+                        <FormMessage />
                       </div>
                     </FormItem>
                   )}
@@ -457,10 +597,11 @@ export default function RegistrationPage() {
                         />
                       </FormControl>
                       <div className="space-y-1 leading-none">
-                        <FormLabel>Charge Understanding</FormLabel>
+                        <FormLabel>Charge Understanding <span className="text-destructive">*</span></FormLabel>
                         <FormDescription>
-                          I understand the charge name that will appear on my bank statement and that disputed charges may delay my order.
+                          I understand the charge name that will appear on my bank statement and that disputed charges may delay getting my recommendation or permit.
                         </FormDescription>
+                        <FormMessage />
                       </div>
                     </FormItem>
                   )}
@@ -479,10 +620,11 @@ export default function RegistrationPage() {
                         />
                       </FormControl>
                       <div className="space-y-1 leading-none">
-                        <FormLabel>Applicant Authorization</FormLabel>
+                        <FormLabel>Applicant Authorization <span className="text-destructive">*</span></FormLabel>
                         <FormDescription>
-                          I authorize the platform and its staff to access my information to assist with processing my order.
+                          I authorize the platform and its staff to access my information to assist with submitting my handicap parking permit application.
                         </FormDescription>
+                        <FormMessage />
                       </div>
                     </FormItem>
                   )}
@@ -490,7 +632,6 @@ export default function RegistrationPage() {
               </CardContent>
             </Card>
 
-            {/* Submit */}
             <div className="flex justify-end gap-4">
               <Button type="submit" disabled={isSaving} data-testid="button-save-registration">
                 {isSaving ? (
@@ -501,7 +642,7 @@ export default function RegistrationPage() {
                 ) : (
                   <>
                     <Save className="mr-2 h-4 w-4" />
-                    Save Changes
+                    Save Profile
                   </>
                 )}
               </Button>

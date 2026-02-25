@@ -1,0 +1,71 @@
+Account Information
+Username
+Will be generated from email
+EmailPlease ensure you have personal access to this email.
+Enter your email
+Password
+Create a password
+Confirm Password
+Confirm your password
+Personal InformationThis information will be used on your medical forms
+First Name
+Enter your first name
+Middle Name (Optional)
+Enter your middle name
+Last Name
+Enter your last name
+Phone Number
+Enter your phone number
+Date of Birth
+mm/dd/yyyy
+Address InformationPlease verify your address does not have a P.O. Box. You WILL BE DENIED if you use a P.O. Box. This information will be used on your medical forms.
+Street Address
+Enter your street address
+City
+Enter your city
+State
+Select state
+
+ZIP Code
+Enter your ZIP code
+Medical Information (Optional)
+Medical Condition or Reason for Visit
+E.g., Chronic pain, anxiety, insomnia... (optional)
+If you're not sure what your state's qualifying conditions are, click here to view them.
+
+This is optional. You can provide this information now or update it later in your profile.
+
+
+Do you have Medicare/Medicaid? If so, click here - it may save you money with your state application fee
+Optional: This helps us provide you with information about potential cost savings on state application fees.
+
+Social Security Number (Optional)
+123-45-6789
+Some states request this information for the application process. Format: XXX-XX-XXXX
+
+
+Disabled Veterans Click Here
+Check this box if you are a disabled veteran. This may help us provide you with special considerations.
+
+Referral Code (Optional)
+Enter referral code (e.g., SMITH2025)
+Have a referral code? Enter it here to get personalized service.
+
+Communication Consent (Required)
+
+SMS/Text Message Consent
+I consent to receive text messages (SMS/MMS) from Sacred Wellness Association at the phone number provided for appointment reminders, consultation notifications, account updates, and service-related communications via Twilio ((580) 706-7468). Message and data rates may apply. I can reply STOP to opt out at any time.View full terms
+
+
+Email Communication Consent
+I consent to receive emails from Sacred Wellness Association at the email address provided for appointment notifications, account updates, service announcements, and healthcare-related communications. I can unsubscribe from non-essential emails at any time by clicking the unsubscribe link.View full terms
+
+
+Charge Understanding
+I understand that my bank statement is going to show "Hive's" as the charge name and will not say Chronic Docs if I dispute these charges that may delay getting my recommendation or medical card
+
+
+Chronic Docs Patient Authorization
+I authorize Chronic Docs and its staff to access my State patient portal to assist with submitting my medical marijuana application. View more details
+
+Both SMS and email consent are required to use our services. These communications are essential for coordinating your healthcare consultations and ensuring timely updates about your care.

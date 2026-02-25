@@ -421,7 +421,13 @@ export async function registerRoutes(
 
   app.post("/api/auth/register", async (req, res) => {
     try {
-      const { email, password, firstName, lastName, phone, referralCode, firebaseUid } = req.body;
+      const {
+        email, password, firstName, lastName, phone, referralCode, firebaseUid,
+        middleName, dateOfBirth, address, city, state, zipCode,
+        driverLicenseNumber, medicalCondition, ssn,
+        hasMedicare, isVeteran,
+        smsConsent, emailConsent, chargeUnderstanding, patientAuthorization
+      } = req.body;
 
       if (!email || !password || !firstName || !lastName) {
         res.status(400).json({ message: "Missing required fields" });
@@ -447,7 +453,9 @@ export async function registerRoutes(
         }
       }
 
-      const user = await storage.createUser({
+      const registrationComplete = !!(firstName && lastName && phone && dateOfBirth && address && city && state && zipCode && smsConsent && emailConsent && chargeUnderstanding && patientAuthorization);
+
+      const userData: any = {
         email,
         passwordHash,
         firstName,
@@ -459,7 +467,26 @@ export async function registerRoutes(
         referralCode: userReferralCode,
         referredByUserId,
         isActive: true,
-      });
+        registrationComplete,
+      };
+
+      if (middleName) userData.middleName = middleName;
+      if (dateOfBirth) userData.dateOfBirth = dateOfBirth;
+      if (address) userData.address = address;
+      if (city) userData.city = city;
+      if (state) userData.state = state;
+      if (zipCode) userData.zipCode = zipCode;
+      if (driverLicenseNumber) userData.driverLicenseNumber = driverLicenseNumber;
+      if (medicalCondition) userData.medicalCondition = medicalCondition;
+      if (ssn) userData.ssn = ssn;
+      if (hasMedicare !== undefined) userData.hasMedicare = hasMedicare;
+      if (isVeteran !== undefined) userData.isVeteran = isVeteran;
+      if (smsConsent !== undefined) userData.smsConsent = smsConsent;
+      if (emailConsent !== undefined) userData.emailConsent = emailConsent;
+      if (chargeUnderstanding !== undefined) userData.chargeUnderstanding = chargeUnderstanding;
+      if (patientAuthorization !== undefined) userData.patientAuthorization = patientAuthorization;
+
+      const user = await storage.createUser(userData);
 
       // Log activity
       await storage.createActivityLog({
@@ -671,6 +698,68 @@ export async function registerRoutes(
       res.status(401).json({ message: "Not authenticated - User not found" });
     } catch (error) {
       res.status(401).json({ message: "Not authenticated" });
+    }
+  });
+
+  // ===========================================================================
+  // PROFILE ROUTES (Self-service profile for applicants)
+  // ===========================================================================
+
+  app.get("/api/profile", requireAuth, async (req, res) => {
+    try {
+      const user = await storage.getUser(req.user!.id);
+      if (!user) {
+        res.status(404).json({ message: "User not found" });
+        return;
+      }
+      res.json({ ...user, passwordHash: undefined });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.put("/api/profile", requireAuth, async (req, res) => {
+    try {
+      const {
+        firstName, middleName, lastName, phone, dateOfBirth,
+        address, city, state, zipCode,
+        driverLicenseNumber, medicalCondition, ssn,
+        hasMedicare, isVeteran,
+        smsConsent, emailConsent, chargeUnderstanding, patientAuthorization,
+        registrationComplete, referralCode
+      } = req.body;
+
+      const updates: Record<string, any> = {};
+
+      if (firstName !== undefined) updates.firstName = firstName;
+      if (middleName !== undefined) updates.middleName = middleName;
+      if (lastName !== undefined) updates.lastName = lastName;
+      if (phone !== undefined) updates.phone = phone;
+      if (dateOfBirth !== undefined) updates.dateOfBirth = dateOfBirth;
+      if (address !== undefined) updates.address = address;
+      if (city !== undefined) updates.city = city;
+      if (state !== undefined) updates.state = state;
+      if (zipCode !== undefined) updates.zipCode = zipCode;
+      if (driverLicenseNumber !== undefined) updates.driverLicenseNumber = driverLicenseNumber;
+      if (medicalCondition !== undefined) updates.medicalCondition = medicalCondition;
+      if (ssn !== undefined) updates.ssn = ssn;
+      if (hasMedicare !== undefined) updates.hasMedicare = hasMedicare;
+      if (isVeteran !== undefined) updates.isVeteran = isVeteran;
+      if (smsConsent !== undefined) updates.smsConsent = smsConsent;
+      if (emailConsent !== undefined) updates.emailConsent = emailConsent;
+      if (chargeUnderstanding !== undefined) updates.chargeUnderstanding = chargeUnderstanding;
+      if (patientAuthorization !== undefined) updates.patientAuthorization = patientAuthorization;
+      if (registrationComplete !== undefined) updates.registrationComplete = registrationComplete;
+      if (referralCode !== undefined) updates.referralCode = referralCode;
+
+      const user = await storage.updateUser(req.user!.id, updates as any);
+      if (!user) {
+        res.status(404).json({ message: "User not found" });
+        return;
+      }
+      res.json({ ...user, passwordHash: undefined });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
     }
   });
 
