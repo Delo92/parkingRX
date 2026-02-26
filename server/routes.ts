@@ -1165,10 +1165,10 @@ export async function registerRoutes(
       }
 
       const patientState = formData.state || patient?.state || "";
-      if (patientState) {
-        const stateTemplate = await storage.getStateFormTemplate(patientState);
-        if (stateTemplate?.gizmoFormUrl) {
-          gizmoFormUrl = stateTemplate.gizmoFormUrl;
+      if (patientState && doctorProfile?.stateForms) {
+        const stateFormUrl = (doctorProfile.stateForms as Record<string, string>)[patientState];
+        if (stateFormUrl) {
+          gizmoFormUrl = stateFormUrl;
         }
       }
       if (!gizmoFormUrl && doctorProfile?.gizmoFormUrl) {
@@ -2522,7 +2522,7 @@ export async function registerRoutes(
 
   app.post("/api/doctor-profiles", requireAuth, requireLevel(2), async (req, res) => {
     try {
-      const { fullName, licenseNumber, npiNumber, deaNumber, phone, fax, address, specialty, bio, state, formTemplate, userId: bodyUserId } = req.body;
+      const { fullName, licenseNumber, npiNumber, deaNumber, phone, fax, address, specialty, bio, state, formTemplate, gizmoFormUrl, licensedStates, stateForms, userId: bodyUserId } = req.body;
       if (!fullName || !licenseNumber) {
         res.status(400).json({ message: "fullName and licenseNumber are required" });
         return;
@@ -2540,6 +2540,9 @@ export async function registerRoutes(
       };
       if (state !== undefined) profileData.state = state;
       if (formTemplate !== undefined) profileData.formTemplate = formTemplate;
+      if (gizmoFormUrl !== undefined) profileData.gizmoFormUrl = gizmoFormUrl;
+      if (licensedStates !== undefined) profileData.licensedStates = licensedStates;
+      if (stateForms !== undefined) profileData.stateForms = stateForms;
       const profile = await storage.createDoctorProfile(profileData);
       res.status(201).json(profile);
     } catch (error: any) {
@@ -2558,7 +2561,7 @@ export async function registerRoutes(
         res.status(403).json({ message: "Not authorized to update this profile" });
         return;
       }
-      const { fullName, licenseNumber, npiNumber, deaNumber, phone, fax, address, specialty, bio, state, formTemplate, gizmoFormUrl, licensedStates } = req.body;
+      const { fullName, licenseNumber, npiNumber, deaNumber, phone, fax, address, specialty, bio, state, formTemplate, gizmoFormUrl, licensedStates, stateForms } = req.body;
       const updateData: Record<string, any> = {};
       if (fullName !== undefined) updateData.fullName = fullName;
       if (licenseNumber !== undefined) updateData.licenseNumber = licenseNumber;
@@ -2573,6 +2576,7 @@ export async function registerRoutes(
       if (formTemplate !== undefined) updateData.formTemplate = formTemplate;
       if (gizmoFormUrl !== undefined) updateData.gizmoFormUrl = gizmoFormUrl;
       if (licensedStates !== undefined) updateData.licensedStates = licensedStates;
+      if (stateForms !== undefined) updateData.stateForms = stateForms;
       const updated = await storage.updateDoctorProfile(req.params.id as string, updateData);
       res.json(updated);
     } catch (error: any) {
@@ -2915,82 +2919,6 @@ export async function registerRoutes(
     try {
       const settings = await storage.updateAdminSettings(req.body);
       res.json(settings);
-    } catch (error: any) {
-      res.status(500).json({ message: error.message });
-    }
-  });
-
-  // ===========================================================================
-  // STATE FORM TEMPLATES (Level 3+ Admin/Owner)
-  // ===========================================================================
-
-  app.get("/api/admin/state-forms", requireAuth, requireLevel(3), async (req, res) => {
-    try {
-      const templates = await storage.getStateFormTemplates();
-      res.json(templates);
-    } catch (error: any) {
-      res.status(500).json({ message: error.message });
-    }
-  });
-
-  app.get("/api/admin/state-forms/:stateCode", requireAuth, requireLevel(3), async (req, res) => {
-    try {
-      const template = await storage.getStateFormTemplate(req.params.stateCode);
-      if (!template) {
-        res.status(404).json({ message: "No form template for this state" });
-        return;
-      }
-      res.json(template);
-    } catch (error: any) {
-      res.status(500).json({ message: error.message });
-    }
-  });
-
-  app.post("/api/admin/state-forms/:stateCode/upload", requireAuth, requireLevel(3), (req, res, next) => {
-    documentUpload.single("file")(req, res, async (err) => {
-      if (err) {
-        res.status(400).json({ message: err.message || "Upload error" });
-        return;
-      }
-      try {
-        if (!req.file) {
-          res.status(400).json({ message: "No file uploaded" });
-          return;
-        }
-
-        const stateCode = req.params.stateCode.trim().toLowerCase();
-        const stateName = req.body.stateName || stateCode.toUpperCase();
-
-        const bucket = firebaseStorage.bucket();
-        const uniqueSuffix = Date.now() + "-" + randomBytes(4).toString("hex");
-        const fileName = `state-form-templates/${stateCode}/${uniqueSuffix}.pdf`;
-        const file = bucket.file(fileName);
-
-        await file.save(req.file.buffer, {
-          metadata: { contentType: "application/pdf" },
-        });
-
-        await file.makePublic();
-        const url = `https://storage.googleapis.com/${bucket.name}/${fileName}`;
-
-        const template = await storage.upsertStateFormTemplate(stateCode, {
-          stateName,
-          gizmoFormUrl: url,
-          uploadedBy: req.user!.id,
-        });
-
-        res.json(template);
-      } catch (error: any) {
-        console.error("State form upload error:", error);
-        res.status(500).json({ message: "Failed to upload state form" });
-      }
-    });
-  });
-
-  app.put("/api/admin/state-forms/:stateCode", requireAuth, requireLevel(3), async (req, res) => {
-    try {
-      const template = await storage.upsertStateFormTemplate(req.params.stateCode, req.body);
-      res.json(template);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
     }

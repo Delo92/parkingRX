@@ -111,6 +111,8 @@ export function UserProfileModal({ user: selectedUser, onClose, canEditLevel = t
   const [doctorProfileData, setDoctorProfileData] = useState<Record<string, any>>({});
   const [pdfUploading, setPdfUploading] = useState(false);
   const [showGizmoPreview, setShowGizmoPreview] = useState(false);
+  const [selectedPdfState, setSelectedPdfState] = useState<string>("");
+  const [previewPdfState, setPreviewPdfState] = useState<string>("");
 
 
   const isUserDoctor = selectedUser?.userLevel === 2;
@@ -185,6 +187,7 @@ export function UserProfileModal({ user: selectedUser, onClose, canEditLevel = t
         licensedStates: doctorProfile.licensedStates || [],
         formTemplate: doctorProfile.formTemplate || "",
         gizmoFormUrl: doctorProfile.gizmoFormUrl || "",
+        stateForms: doctorProfile.stateForms || {},
       });
     } else if (selectedUser && isUserDoctor) {
       setDoctorProfileData({
@@ -200,6 +203,7 @@ export function UserProfileModal({ user: selectedUser, onClose, canEditLevel = t
         licensedStates: [],
         formTemplate: "",
         gizmoFormUrl: "",
+        stateForms: {},
       });
     }
   }, [doctorProfile, selectedUser, isUserDoctor]);
@@ -868,51 +872,103 @@ export function UserProfileModal({ user: selectedUser, onClose, canEditLevel = t
 
                 <h4 className="text-sm font-semibold text-muted-foreground flex items-center gap-1.5">
                   <FileText className="h-4 w-4" />
-                  PDF Auto-Fill Form
+                  PDF Auto-Fill Forms by State
                 </h4>
 
                 <div className="p-3 bg-muted/50 border rounded-md text-sm text-muted-foreground flex items-start gap-2">
                   <Info className="h-4 w-4 mt-0.5 flex-shrink-0" />
                   <span>
-                    Upload a PDF form that will be auto-filled with patient and doctor data when an application is approved. The form fields will be matched automatically.
+                    Upload a PDF form, then assign it to a state. When a patient from that state is approved, this form will be auto-filled. You can upload different forms for different states.
                   </span>
                 </div>
 
+                {Object.keys(doctorProfileData.stateForms || {}).length > 0 && (
+                  <div className="space-y-2">
+                    {Object.entries(doctorProfileData.stateForms as Record<string, string>).map(([st, url]) => (
+                      <div key={st} className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-md overflow-hidden">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 text-sm text-green-700 dark:text-green-300 min-w-0">
+                            <CheckCircle className="h-4 w-4 flex-shrink-0" />
+                            <span className="font-medium">{st}</span>
+                          </div>
+                          <div className="flex items-center gap-1 flex-shrink-0">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setPreviewPdfState(st);
+                                setShowGizmoPreview(true);
+                              }}
+                              data-testid={`button-preview-pdf-${st}`}
+                            >
+                              <FileText className="h-3 w-3 mr-1" /> Preview & Fill
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="text-destructive hover:text-destructive"
+                              onClick={() => {
+                                const updated = { ...(doctorProfileData.stateForms || {}) };
+                                delete updated[st];
+                                setDoctorProfileData({ ...doctorProfileData, stateForms: updated });
+                              }}
+                              data-testid={`button-remove-pdf-${st}`}
+                            >
+                              <Trash2 className="h-3 w-3 mr-1" /> Remove
+                            </Button>
+                          </div>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1 truncate max-w-full break-all">{(url as string).split("/").pop()}</p>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
                 {doctorProfileData.gizmoFormUrl && (
-                  <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-md overflow-hidden">
+                  <div className="p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-md overflow-hidden">
                     <div className="flex items-center justify-between gap-2">
-                      <div className="flex items-center gap-2 text-sm text-green-700 dark:text-green-300 min-w-0">
-                        <CheckCircle className="h-4 w-4 flex-shrink-0" />
-                        <span className="font-medium">PDF form uploaded</span>
+                      <div className="flex items-center gap-2 text-sm text-amber-700 dark:text-amber-300 min-w-0">
+                        <Upload className="h-4 w-4 flex-shrink-0" />
+                        <span className="font-medium">Uploaded PDF</span>
                       </div>
                       <div className="flex items-center gap-1 flex-shrink-0">
                         <Button
                           type="button"
                           variant="ghost"
                           size="sm"
-                          onClick={() => setShowGizmoPreview(true)}
-                          data-testid="button-preview-pdf-form"
-                        >
-                          <FileText className="h-3 w-3 mr-1" /> Preview & Fill
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
                           className="text-destructive hover:text-destructive"
                           onClick={() => setDoctorProfileData({ ...doctorProfileData, gizmoFormUrl: "" })}
-                          data-testid="button-remove-pdf-form"
+                          data-testid="button-remove-unassigned-pdf"
                         >
-                          <Trash2 className="h-3 w-3 mr-1" /> Remove
+                          <Trash2 className="h-3 w-3 mr-1" /> Clear
                         </Button>
                       </div>
                     </div>
                     <p className="text-xs text-muted-foreground mt-1 truncate max-w-full break-all">{doctorProfileData.gizmoFormUrl.split("/").pop()}</p>
+                    <div className="flex items-center gap-2 mt-2">
+                      <Select value={selectedPdfState} onValueChange={(val) => {
+                        const updated = { ...(doctorProfileData.stateForms || {}), [val]: doctorProfileData.gizmoFormUrl };
+                        setDoctorProfileData({ ...doctorProfileData, stateForms: updated });
+                        setSelectedPdfState("");
+                        toast({ title: "State Assigned", description: `PDF form assigned to ${val}. Upload another PDF or assign this one to more states.` });
+                      }}>
+                        <SelectTrigger className="flex-1" data-testid="select-assign-state">
+                          <SelectValue placeholder="Assign to state..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {["Alabama","Alaska","Arizona","Arkansas","California","Colorado","Connecticut","Delaware","Florida","Georgia","Hawaii","Idaho","Illinois","Indiana","Iowa","Kansas","Kentucky","Louisiana","Maine","Maryland","Massachusetts","Michigan","Minnesota","Mississippi","Missouri","Montana","Nebraska","Nevada","New Hampshire","New Jersey","New Mexico","New York","North Carolina","North Dakota","Ohio","Oklahoma","Oregon","Pennsylvania","Rhode Island","South Carolina","South Dakota","Tennessee","Texas","Utah","Vermont","Virginia","Washington","West Virginia","Wisconsin","Wyoming"].filter(s => !(doctorProfileData.stateForms || {})[s]).map((st) => (
+                            <SelectItem key={st} value={st}>{st}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
                 )}
 
                 <div className="space-y-1.5">
-                  <Label>{doctorProfileData.gizmoFormUrl ? "Replace PDF Form" : "Upload PDF Form"}</Label>
+                  <Label>Upload PDF Form</Label>
                   <div className="flex items-center gap-2">
                     <input
                       type="file"
@@ -929,19 +985,19 @@ export function UserProfileModal({ user: selectedUser, onClose, canEditLevel = t
                         }
                         setPdfUploading(true);
                         try {
-                          const formData = new FormData();
-                          formData.append("file", file);
+                          const fd = new FormData();
+                          fd.append("file", file);
                           const token = await getIdToken();
                           const res = await fetch(`/api/admin/doctor-templates/${doctorProfile.id}/gizmo-form`, {
                             method: "POST",
                             headers: token ? { Authorization: `Bearer ${token}` } : {},
-                            body: formData,
+                            body: fd,
                           });
                           if (!res.ok) throw new Error((await res.json()).message || "Upload failed");
                           const data = await res.json();
                           setDoctorProfileData({ ...doctorProfileData, gizmoFormUrl: data.url });
                           queryClient.invalidateQueries({ queryKey: ["/api/doctor-profiles"] });
-                          toast({ title: "PDF Form Uploaded", description: "The auto-fill form has been saved for this doctor." });
+                          toast({ title: "PDF Uploaded", description: "Now assign it to a state using the dropdown above." });
                         } catch (err: any) {
                           toast({ title: "Upload Failed", description: err.message, variant: "destructive" });
                         } finally {
@@ -1061,11 +1117,11 @@ export function UserProfileModal({ user: selectedUser, onClose, canEditLevel = t
         </DialogFooter>
       </DialogContent>
 
-      {showGizmoPreview && doctorProfileData.gizmoFormUrl && (
-        <Dialog open={showGizmoPreview} onOpenChange={setShowGizmoPreview}>
+      {showGizmoPreview && (previewPdfState ? (doctorProfileData.stateForms || {})[previewPdfState] : doctorProfileData.gizmoFormUrl) && (
+        <Dialog open={showGizmoPreview} onOpenChange={(open) => { setShowGizmoPreview(open); if (!open) setPreviewPdfState(""); }}>
           <DialogContent className="max-w-[95vw] w-[95vw] max-h-[95vh] h-[95vh] p-0 overflow-auto [&>button.absolute]:hidden">
             <DialogHeader className="sr-only">
-              <DialogTitle>PDF Form Preview</DialogTitle>
+              <DialogTitle>PDF Form Preview{previewPdfState ? ` - ${previewPdfState}` : ""}</DialogTitle>
               <DialogDescription>Preview and fill the PDF form</DialogDescription>
             </DialogHeader>
             <GizmoForm
@@ -1084,11 +1140,11 @@ export function UserProfileModal({ user: selectedUser, onClose, canEditLevel = t
                   specialty: doctorProfileData.specialty || "",
                   fax: doctorProfileData.fax || "",
                 },
-                gizmoFormUrl: doctorProfileData.gizmoFormUrl,
+                gizmoFormUrl: previewPdfState ? (doctorProfileData.stateForms || {})[previewPdfState] : doctorProfileData.gizmoFormUrl,
                 generatedDate: new Date().toLocaleDateString(),
                 patientName: "Test Patient",
               }}
-              onClose={() => setShowGizmoPreview(false)}
+              onClose={() => { setShowGizmoPreview(false); setPreviewPdfState(""); }}
             />
           </DialogContent>
         </Dialog>
