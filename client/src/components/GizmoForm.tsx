@@ -122,7 +122,7 @@ function getRadioGroup(option: string): string {
   return "other";
 }
 
-const RADIO_AUTO_FILL: Record<string, { sourceField: string; valueMap: Record<string, string> }> = {
+const RADIO_AUTO_FILL: Record<string, { sourceField: string; valueMap: Record<string, string>; defaultOption?: string }> = {
   idtype: {
     sourceField: "idType",
     valueMap: {
@@ -134,6 +134,7 @@ const RADIO_AUTO_FILL: Record<string, { sourceField: string; valueMap: Record<st
   },
   condition: {
     sourceField: "disabilityCondition",
+    defaultOption: "7",
     valueMap: {
       A: "7",
       B: "8",
@@ -169,6 +170,25 @@ function resolveValue(
     val = `${m}/${d}/${y}`;
   }
   return val;
+}
+
+async function checkForPlaceholderTokens(pdf: pdfjsLib.PDFDocumentProxy): Promise<boolean> {
+  for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+    const page = await pdf.getPage(pageNum);
+    const textContent = await page.getTextContent();
+    const allText = textContent.items
+      .filter((item): item is { str: string } => "str" in item)
+      .map((item) => item.str)
+      .join("");
+
+    if (/\{(firstName|lastName|middleName|dateOfBirth|address|city|state|zipCode|zip|phone|email|date|driverLicenseNumber|medicalCondition|idNumber|suffix|apt|idExpirationDate|doctorFirstName|doctorLastName|doctorPhone|doctorAddress|doctorState|doctorLicenseNumber|doctorNpiNumber)\}?/i.test(allText)) {
+      return true;
+    }
+    if (/\{radio[_\s]/i.test(allText) || /radio\s*_?\s*id/i.test(allText)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function sanitizeFilename(s: string): string {
@@ -225,6 +245,15 @@ export function GizmoForm({ data, onClose }: GizmoFormProps) {
       const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(originalBytes.slice(0)) }).promise;
       setPdfDoc(pdf);
       setTotalPages(pdf.numPages);
+
+      const hasPlaceholders = await checkForPlaceholderTokens(pdf);
+
+      if (hasPlaceholders) {
+        setMode("placeholder");
+        await extractPlaceholdersFromPdf(pdf);
+        setLoading(false);
+        return;
+      }
 
       const { PDFDocument } = await import("pdf-lib");
       const pdfLibDoc = await PDFDocument.load(originalBytes.slice(0));
@@ -305,17 +334,29 @@ export function GizmoForm({ data, onClose }: GizmoFormProps) {
     const fields: PlaceholderField[] = [];
     const radios: RadioField[] = [];
 
+    interface TextItem {
+      str: string;
+      transform: number[];
+      width: number;
+      height: number;
+    }
+
+    interface PendingField {
+      token: string;
+      mapping: { source: "patient" | "doctor" | "meta"; key: string };
+      x: number;
+      y: number;
+      pageIndex: number;
+      viewportWidth: number;
+      viewportHeight: number;
+    }
+
+    const pendingFields: PendingField[] = [];
+
     for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
       const page = await pdf.getPage(pageNum);
       const textContent = await page.getTextContent();
       const viewport = page.getViewport({ scale: 1 });
-
-      interface TextItem {
-        str: string;
-        transform: number[];
-        width: number;
-        height: number;
-      }
 
       const items = textContent.items.filter((item): item is TextItem => "str" in item && item.str.length > 0);
 
@@ -340,10 +381,11 @@ export function GizmoForm({ data, onClose }: GizmoFormProps) {
         line.sort((a, b) => a.transform[4] - b.transform[4]);
         const fullText = line.map((i) => i.str).join("");
 
-        const placeholderRegex = /\{([a-zA-Z]+)\}/g;
+        const placeholderRegex = /\{([a-zA-Z]+)\}?/g;
         let match;
         while ((match = placeholderRegex.exec(fullText)) !== null) {
-          const token = match[0];
+          const tokenKey = match[1];
+          const token = `{${tokenKey}}`;
           const mapping = PLACEHOLDER_MAP[token];
 
           if (mapping) {
@@ -364,32 +406,14 @@ export function GizmoForm({ data, onClose }: GizmoFormProps) {
               const x = anchorItem.transform[4] + (anchorOffset * (anchorItem.width / Math.max(anchorItem.str.length, 1)));
               const y = anchorItem.transform[5];
 
-              let labelItem: TextItem | null = null;
-              for (let li = line.indexOf(anchorItem) - 1; li >= 0; li--) {
-                const candidate = line[li];
-                if (anchorItem.transform[4] - (candidate.transform[4] + candidate.width) < 15) {
-                  labelItem = candidate;
-                  break;
-                }
-              }
-
-              const anchorX = labelItem ? labelItem.transform[4] : x;
-              const nextFieldOnLine = fields.filter(
-                (f) => f.pageIndex === pageNum - 1 && Math.abs(f.y - y) < 3 && f.x > anchorX
-              );
-              const nextX = nextFieldOnLine.length > 0 ? Math.min(...nextFieldOnLine.map((f) => f.x)) : null;
-              const fieldWidth = nextX ? nextX - anchorX - 8 : viewport.width - anchorX - 20;
-
-              fields.push({
+              pendingFields.push({
                 token,
-                key: mapping.key,
-                source: mapping.source,
-                dataKey: mapping.key,
-                x: anchorX + offsets.x,
-                y: viewport.height - y + offsets.y,
-                width: Math.max(fieldWidth, 60),
+                mapping,
+                x,
+                y,
                 pageIndex: pageNum - 1,
-                value: resolveValue(mapping.source, mapping.key, data),
+                viewportWidth: viewport.width,
+                viewportHeight: viewport.height,
               });
             }
           }
@@ -513,6 +537,28 @@ export function GizmoForm({ data, onClose }: GizmoFormProps) {
           addRadioFromItem(option, anchorX, anchorY, other.height || item.height);
         }
       }
+    }
+
+    for (const pf of pendingFields) {
+      const sameLine = pendingFields.filter(
+        (other) => other.pageIndex === pf.pageIndex
+          && Math.abs(other.y - pf.y) < 3
+          && other.x > pf.x
+      );
+      const nextX = sameLine.length > 0 ? Math.min(...sameLine.map((f) => f.x)) : null;
+      const fieldWidth = nextX ? nextX - pf.x - 5 : pf.viewportWidth - pf.x - 20;
+
+      fields.push({
+        token: pf.token,
+        key: pf.mapping.key,
+        source: pf.mapping.source,
+        dataKey: pf.mapping.key,
+        x: pf.x + offsets.x,
+        y: pf.viewportHeight - pf.y + offsets.y,
+        width: Math.max(fieldWidth, 40),
+        pageIndex: pf.pageIndex,
+        value: resolveValue(pf.mapping.source, pf.mapping.key, data),
+      });
     }
 
     setPlaceholderFields(fields);
