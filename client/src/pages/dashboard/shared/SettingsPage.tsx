@@ -37,10 +37,9 @@ const profileSchema = z.object({
 type ProfileFormData = z.infer<typeof profileSchema>;
 
 export default function SettingsPage() {
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const { getLevelName } = useConfig();
   const { toast } = useToast();
-  const [isSaving, setIsSaving] = useState(false);
 
   const form = useForm<ProfileFormData>({
     resolver: zodResolver(profileSchema),
@@ -53,14 +52,33 @@ export default function SettingsPage() {
     },
   });
 
-  const onSubmit = async (data: ProfileFormData) => {
-    setIsSaving(true);
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    toast({
-      title: "Settings Saved",
-      description: "Your profile has been updated successfully.",
-    });
-    setIsSaving(false);
+  const saveProfile = useMutation({
+    mutationFn: async (data: ProfileFormData) => {
+      return apiRequest("PUT", "/api/profile", {
+        firstName: data.firstName,
+        lastName: data.lastName,
+        contactEmail: data.contactEmail || "",
+        phone: data.phone,
+      });
+    },
+    onSuccess: () => {
+      refreshUser?.();
+      toast({
+        title: "Settings Saved",
+        description: "Your profile has been updated successfully.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Save Failed",
+        description: error.message || "Something went wrong.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const onSubmit = (data: ProfileFormData) => {
+    saveProfile.mutate(data);
   };
 
   const getInitials = () => {
@@ -181,8 +199,8 @@ export default function SettingsPage() {
                   )}
                 />
 
-                <Button type="submit" disabled={isSaving} data-testid="button-save-profile">
-                  {isSaving ? (
+                <Button type="submit" disabled={saveProfile.isPending} data-testid="button-save-profile">
+                  {saveProfile.isPending ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       Saving...

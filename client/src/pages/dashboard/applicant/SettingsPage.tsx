@@ -1,5 +1,5 @@
-import { useState } from "react";
 import { useForm } from "react-hook-form";
+import { useMutation } from "@tanstack/react-query";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,7 +21,8 @@ import {
 import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import { User, Bell, Lock, Loader2 } from "lucide-react";
+import { apiRequest } from "@/lib/queryClient";
+import { User as UserIcon, Bell, Lock, Loader2 } from "lucide-react";
 
 const profileSchema = z.object({
   firstName: z.string().min(1, "First name is required"),
@@ -33,9 +34,8 @@ const profileSchema = z.object({
 type ProfileFormData = z.infer<typeof profileSchema>;
 
 export default function SettingsPage() {
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const { toast } = useToast();
-  const [isSaving, setIsSaving] = useState(false);
 
   const form = useForm<ProfileFormData>({
     resolver: zodResolver(profileSchema),
@@ -47,15 +47,32 @@ export default function SettingsPage() {
     },
   });
 
-  const onSubmit = async (data: ProfileFormData) => {
-    setIsSaving(true);
-    // Simulate save
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    toast({
-      title: "Settings Saved",
-      description: "Your profile has been updated successfully.",
-    });
-    setIsSaving(false);
+  const saveProfile = useMutation({
+    mutationFn: async (data: ProfileFormData) => {
+      return apiRequest("PUT", "/api/profile", {
+        firstName: data.firstName,
+        lastName: data.lastName,
+        phone: data.phone,
+      });
+    },
+    onSuccess: () => {
+      refreshUser?.();
+      toast({
+        title: "Settings Saved",
+        description: "Your profile has been updated successfully.",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Save Failed",
+        description: error.message || "Something went wrong.",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const onSubmit = (data: ProfileFormData) => {
+    saveProfile.mutate(data);
   };
 
   const getInitials = () => {
@@ -78,7 +95,7 @@ export default function SettingsPage() {
         <Card>
           <CardHeader>
             <div className="flex items-center gap-2">
-              <User className="h-5 w-5" />
+              <UserIcon className="h-5 w-5" />
               <CardTitle>Profile</CardTitle>
             </div>
             <CardDescription>Update your personal information</CardDescription>
@@ -158,8 +175,8 @@ export default function SettingsPage() {
                   )}
                 />
 
-                <Button type="submit" disabled={isSaving} data-testid="button-save-profile">
-                  {isSaving ? (
+                <Button type="submit" disabled={saveProfile.isPending} data-testid="button-save-profile">
+                  {saveProfile.isPending ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       Saving...

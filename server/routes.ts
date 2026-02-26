@@ -810,7 +810,7 @@ export async function registerRoutes(
         driverLicenseNumber, medicalCondition, ssn,
         hasMedicare, isVeteran,
         smsConsent, emailConsent, chargeUnderstanding, patientAuthorization,
-        registrationComplete, referralCode
+        registrationComplete, referralCode, contactEmail
       } = req.body;
 
       const updates: Record<string, any> = {};
@@ -819,6 +819,7 @@ export async function registerRoutes(
       if (middleName !== undefined) updates.middleName = middleName;
       if (lastName !== undefined) updates.lastName = lastName;
       if (phone !== undefined) updates.phone = phone;
+      if (contactEmail !== undefined) updates.contactEmail = contactEmail;
       if (dateOfBirth !== undefined) updates.dateOfBirth = dateOfBirth;
       if (address !== undefined) updates.address = address;
       if (city !== undefined) updates.city = city;
