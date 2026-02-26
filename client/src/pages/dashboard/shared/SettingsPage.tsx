@@ -30,6 +30,7 @@ const profileSchema = z.object({
   firstName: z.string().min(1, "First name is required"),
   lastName: z.string().min(1, "Last name is required"),
   email: z.string().email("Invalid email address"),
+  contactEmail: z.string().email("Invalid email address").or(z.literal("")).optional(),
   phone: z.string().optional(),
 });
 
@@ -47,6 +48,7 @@ export default function SettingsPage() {
       firstName: user?.firstName || "",
       lastName: user?.lastName || "",
       email: user?.email || "",
+      contactEmail: (user as any)?.contactEmail || "",
       phone: user?.phone || "",
     },
   });
@@ -140,10 +142,26 @@ export default function SettingsPage() {
                   name="email"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Email</FormLabel>
+                      <FormLabel>Sign-In Email</FormLabel>
                       <FormControl>
-                        <Input type="email" data-testid="input-email" {...field} />
+                        <Input type="email" data-testid="input-email" {...field} disabled className="bg-muted" />
                       </FormControl>
+                      <FormDescription>This is your login email and cannot be changed here.</FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="contactEmail"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Contact Email</FormLabel>
+                      <FormControl>
+                        <Input type="email" placeholder="Optional — for receipts & notifications" data-testid="input-contact-email" {...field} />
+                      </FormControl>
+                      <FormDescription>Receipts, approvals, and notifications go here. If empty, your sign-in email is used.</FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}

@@ -10,6 +10,10 @@ import fs from "fs";
 import { firebaseStorage, firebaseAuth, getAdminAuth, firestore } from "./firebase-admin";
 import { sendDoctorApprovalEmail, sendAdminNotificationEmail, sendPatientApprovalEmail, sendDoctorCompletionCopyEmail } from "./email";
 
+function getContactEmail(user: Record<string, any>): string {
+  return user.contactEmail || user.email;
+}
+
 async function fireAutoMessageTriggers(applicationId: string, newStatus: string) {
   try {
     const app = await storage.getApplication(applicationId);
@@ -1008,10 +1012,11 @@ export async function registerRoutes(
               fireAutoMessageTriggers(application.id, "doctor_approved");
               application.status = "doctor_approved";
 
-              if (patient.email) {
+              const patientContactEmail = getContactEmail(patient);
+              if (patientContactEmail) {
                 const dashboardUrl = `${protocol}://${host}/dashboard/applicant/documents`;
                 sendPatientApprovalEmail({
-                  patientEmail: patient.email,
+                  patientEmail: patientContactEmail,
                   patientName,
                   packageName: pkg.name,
                   applicationId: application.id,
@@ -1019,12 +1024,13 @@ export async function registerRoutes(
                 }).catch(err => console.error("Auto-complete patient email error:", err));
               }
 
-              if (doctorUser?.email) {
+              if (doctorUser) {
+                const doctorContactEmail = getContactEmail(doctorUser);
                 sendDoctorCompletionCopyEmail({
-                  doctorEmail: doctorUser.email,
+                  doctorEmail: doctorContactEmail,
                   doctorName: doctorUser.lastName || doctor.fullName || "Doctor",
                   patientName,
-                  patientEmail: patient.email,
+                  patientEmail: patientContactEmail,
                   packageName: pkg.name,
                   applicationId: application.id,
                   formData: formData || {},
@@ -1037,7 +1043,7 @@ export async function registerRoutes(
                   adminEmail: notificationEmail,
                   doctorName: doctorUser?.lastName || doctor.fullName || "Doctor",
                   patientName,
-                  patientEmail: patient.email,
+                  patientEmail: patientContactEmail,
                   packageName: pkg.name,
                   formData: formData || {},
                   reviewUrl: `${protocol}://${host}/dashboard/admin/applications`,
@@ -1066,12 +1072,12 @@ export async function registerRoutes(
 
               const reviewUrl = `${protocol}://${host}/review/${token}`;
 
-              if (doctorUser?.email) {
+              if (doctorUser) {
                 sendDoctorApprovalEmail({
-                  doctorEmail: doctorUser.email,
+                  doctorEmail: getContactEmail(doctorUser),
                   doctorName: doctorUser.lastName || doctor.fullName || "Doctor",
                   patientName,
-                  patientEmail: patient.email,
+                  patientEmail: getContactEmail(patient),
                   packageName: pkg.name,
                   formData: formData || {},
                   reviewUrl,
@@ -1085,7 +1091,7 @@ export async function registerRoutes(
                   adminEmail: notificationEmail,
                   doctorName: doctorUser?.lastName || doctor.fullName || "Doctor",
                   patientName,
-                  patientEmail: patient.email,
+                  patientEmail: getContactEmail(patient),
                   packageName: pkg.name,
                   formData: formData || {},
                   reviewUrl,
@@ -1523,9 +1529,9 @@ export async function registerRoutes(
 
       fireAutoMessageTriggers(applicationId, "doctor_review");
 
-      const doctorEmail = doctorUser?.email;
+      const doctorEmail = doctorUser ? getContactEmail(doctorUser) : null;
       const patientName = patient ? `${patient.firstName} ${patient.lastName}` : "Patient";
-      const patientEmail = patient?.email || "";
+      const patientEmail = patient ? getContactEmail(patient) : "";
       const packageName = pkg?.name || "Handicap Permit";
 
       if (doctorEmail) {
@@ -1712,12 +1718,12 @@ export async function registerRoutes(
 
           const patient = await storage.getUser(application.userId);
           const pkg = application.packageId ? await storage.getPackage(application.packageId) : null;
-          if (patient?.email) {
+          if (patient) {
             const protocol = process.env.NODE_ENV === "production" ? "https" : "https";
             const host = req.get("host") || "localhost:5000";
             const dashboardUrl = `${protocol}://${host}/dashboard/applicant/documents`;
             sendPatientApprovalEmail({
-              patientEmail: patient.email,
+              patientEmail: getContactEmail(patient),
               patientName: `${patient.firstName} ${patient.lastName}`,
               packageName: pkg?.name || "Handicap Permit",
               applicationId: tokenRecord.applicationId,
