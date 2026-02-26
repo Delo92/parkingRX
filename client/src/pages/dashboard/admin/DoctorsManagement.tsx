@@ -18,7 +18,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { auth } from "@/lib/firebase";
-import { Plus, Upload, Trash2, FileText, Eye, Loader2 } from "lucide-react";
+import { Plus, Upload, Trash2, FileText, Eye, Loader2, Link2, Check } from "lucide-react";
 
 interface DoctorProfile {
   id: string;
@@ -32,6 +32,7 @@ interface DoctorProfile {
   fax: string;
   address: string;
   bio: string;
+  gizmoFormUrl?: string;
   documentTemplates?: DocumentTemplate[];
   createdAt: string;
 }
@@ -135,6 +136,22 @@ export default function DoctorsManagement() {
       setUploading(false);
     }
   };
+
+  const updateGizmoUrlMutation = useMutation({
+    mutationFn: async ({ doctorProfileId, gizmoFormUrl }: { doctorProfileId: string; gizmoFormUrl: string }) => {
+      const res = await apiRequest("PUT", `/api/doctor-profiles/${doctorProfileId}`, { gizmoFormUrl });
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "PDF Template URL saved" });
+      queryClient.invalidateQueries({ queryKey: ["/api/doctor-profiles"] });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const [gizmoUrlInputs, setGizmoUrlInputs] = useState<Record<string, string>>({});
 
   const handleCreateSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -360,6 +377,43 @@ export default function DoctorsManagement() {
                     <div>
                       <p className="text-muted-foreground">Address</p>
                       <p>{doctor.address || "—"}</p>
+                    </div>
+                  </div>
+
+                  <div className="border-t pt-4">
+                    <div className="mb-4">
+                      <p className="text-sm font-medium mb-2">PDF Auto-Fill Template URL</p>
+                      <div className="flex gap-2">
+                        <Input
+                          placeholder="Enter PDF template URL (e.g., /templates/form.pdf or https://...)"
+                          value={gizmoUrlInputs[doctor.id] ?? doctor.gizmoFormUrl ?? ""}
+                          onChange={(e) => setGizmoUrlInputs({ ...gizmoUrlInputs, [doctor.id]: e.target.value })}
+                          className="flex-1"
+                          data-testid={`input-gizmo-url-${doctor.id}`}
+                        />
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          disabled={updateGizmoUrlMutation.isPending}
+                          onClick={() => {
+                            const url = gizmoUrlInputs[doctor.id] ?? doctor.gizmoFormUrl ?? "";
+                            updateGizmoUrlMutation.mutate({ doctorProfileId: doctor.id, gizmoFormUrl: url });
+                          }}
+                          data-testid={`button-save-gizmo-url-${doctor.id}`}
+                        >
+                          {updateGizmoUrlMutation.isPending ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <><Check className="h-4 w-4 mr-1" />Save</>
+                          )}
+                        </Button>
+                      </div>
+                      {doctor.gizmoFormUrl && (
+                        <p className="text-xs text-muted-foreground mt-1 flex items-center gap-1">
+                          <Link2 className="h-3 w-3" />
+                          Current: {doctor.gizmoFormUrl}
+                        </p>
+                      )}
                     </div>
                   </div>
 

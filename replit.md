@@ -20,6 +20,8 @@ The application is a full-stack TypeScript project. The frontend uses React, whi
 - **Automated Doctor Assignment**: Global round-robin system for assigning applications to doctors.
 - **Secure Doctor Review System**: Doctors review applications via secure, token-based links without requiring login.
 - **Automated Document Generation**: Permits are auto-generated upon doctor approval using the doctor's HTML form template with 26 placeholder tags (e.g., `{{patientName}}`, `{{doctorLicense}}`). Falls back to a default template if no custom template is set. Generated HTML is stored in document metadata and served via `/api/documents/:id/html` for viewing/printing.
+- **Gizmo PDF Auto-Fill System**: Browser-side PDF auto-fill using `pdf-lib` (writing) and `pdfjs-dist` (rendering/scanning). Two modes: AcroForm (interactive fields matched via fuzzy normalization) and Placeholder (flat PDFs with `{token}` text scanned for coordinates). Supports 16 radio buttons for the Oklahoma disability form (A-H conditions map to `radio_id_7` through `radio_id_14`). Per-doctor PDF template URLs stored as `gizmoFormUrl` on doctorProfiles. Proxy endpoint at `/api/forms/proxy-pdf` handles CORS for external PDF URLs. Form data endpoint at `/api/forms/data/:applicationId` assembles patient+doctor data for auto-fill. Viewer page at `/dashboard/applicant/documents/:applicationId/form`.
+- **Disability Condition Questionnaire**: Step 2 of the application wizard requires applicants to select their qualifying disability condition (A through H, matching Oklahoma's Section 2 physician statement). Selection is stored as `disabilityCondition` in form data and auto-fills the corresponding radio button on the PDF.
 - **Email Notifications**: Automated transactional emails for doctor approval requests, admin notifications, and patient approval confirmations via SendGrid.
 - **White-Label Configuration**: Owner role has full control over branding, role names, contact info, and site media.
 - **Dynamic Form Fields**: Admins can define custom required fields per service package.
@@ -50,6 +52,8 @@ The application is a full-stack TypeScript project. The frontend uses React, whi
 - **@hookform/resolvers**: Zod integration for form validation.
 - **date-fns**: Date utility library.
 - **Recharts**: Charting library.
+- **pdf-lib**: Client-side PDF writing, AcroForm field filling, and flattening.
+- **pdfjs-dist**: Client-side PDF text layer parsing for placeholder coordinate extraction.
 
 ### Backend Libraries
 - **Firebase Admin SDK**: For interacting with Firebase services.

@@ -35,8 +35,20 @@ import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { Package } from "@shared/schema";
 import { ArrowLeft, ArrowRight, Check, Loader2, AlertCircle, User } from "lucide-react";
 
+const DISABILITY_CONDITIONS = [
+  { value: "A", label: "A. Cannot walk 200 feet without stopping to rest" },
+  { value: "B", label: "B. Cannot walk without the use of or assistance from a brace, cane, crutch, another person, prosthetic device, wheelchair, or other assistive device" },
+  { value: "C", label: "C. Restricted respiratory/expiratory volume for one liter, or arterial oxygen tension less than 60MM/HG on room air at rest" },
+  { value: "D", label: "D. Must use portable oxygen" },
+  { value: "E", label: "E. Has functional limitations classified as Class III or Class IV according to American Heart Association standards" },
+  { value: "F", label: "F. Severely limited in ability to walk due to arthritic, neurological, or orthopedic condition, or complications due to pregnancy" },
+  { value: "G", label: "G. Certified legally blind" },
+  { value: "H", label: "H. Missing one or more limbs which impairs mobility" },
+] as const;
+
 const applicationSchema = z.object({
   packageId: z.string().min(1, "Please select a permit type"),
+  disabilityCondition: z.string().min(1, "Please select your qualifying condition"),
   reason: z.string().min(10, "Please provide more details about your condition"),
   additionalInfo: z.string().optional(),
 });
@@ -86,6 +98,7 @@ export default function NewApplication() {
     resolver: zodResolver(applicationSchema),
     defaultValues: {
       packageId: preselectedPackage,
+      disabilityCondition: "",
       reason: "",
       additionalInfo: "",
     },
@@ -94,6 +107,7 @@ export default function NewApplication() {
   const createApplication = useMutation({
     mutationFn: async (data: ApplicationFormData) => {
       const fullName = [profile?.firstName, profile?.middleName, profile?.lastName].filter(Boolean).join(" ");
+      const conditionLabel = DISABILITY_CONDITIONS.find(c => c.value === data.disabilityCondition)?.label || data.disabilityCondition;
       const formData = {
         ...data,
         ...customFields,
@@ -109,7 +123,8 @@ export default function NewApplication() {
         state: profile?.state,
         zipCode: profile?.zipCode,
         driverLicenseNumber: profile?.driverLicenseNumber,
-        medicalCondition: profile?.medicalCondition,
+        medicalCondition: conditionLabel,
+        disabilityCondition: data.disabilityCondition,
         ssn: profile?.ssn,
         hasMedicare: profile?.hasMedicare,
         isVeteran: profile?.isVeteran,
@@ -143,6 +158,10 @@ export default function NewApplication() {
   const nextStep = () => {
     if (step === 1 && !form.getValues("packageId")) {
       form.setError("packageId", { message: "Please select a permit type" });
+      return;
+    }
+    if (step === 2 && !form.getValues("disabilityCondition")) {
+      form.setError("disabilityCondition", { message: "Please select your qualifying condition" });
       return;
     }
     if (step < totalSteps) {
@@ -304,6 +323,51 @@ export default function NewApplication() {
 
             {step === 2 && (
               <div className="space-y-6">
+                <Card data-testid="step-disability-condition">
+                  <CardHeader>
+                    <CardTitle>Qualifying Disability Condition</CardTitle>
+                    <CardDescription>
+                      Select the condition that qualifies you for a disability parking placard. This will be reviewed by a licensed physician.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <FormField
+                      control={form.control}
+                      name="disabilityCondition"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormControl>
+                            <RadioGroup
+                              onValueChange={field.onChange}
+                              value={field.value}
+                              className="space-y-3"
+                            >
+                              {DISABILITY_CONDITIONS.map((condition) => (
+                                <div key={condition.value}>
+                                  <RadioGroupItem
+                                    value={condition.value}
+                                    id={`condition-${condition.value}`}
+                                    className="peer sr-only"
+                                  />
+                                  <Label
+                                    htmlFor={`condition-${condition.value}`}
+                                    className="flex items-start gap-3 p-3 border rounded-lg cursor-pointer peer-data-[state=checked]:border-primary peer-data-[state=checked]:bg-primary/5 hover-elevate transition-all text-sm"
+                                    data-testid={`condition-option-${condition.value}`}
+                                  >
+                                    <span className="font-semibold text-primary min-w-[24px]">{condition.value}.</span>
+                                    <span>{condition.label.substring(3)}</span>
+                                  </Label>
+                                </div>
+                              ))}
+                            </RadioGroup>
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </CardContent>
+                </Card>
+
                 <Card data-testid="step-review-info">
                   <CardHeader>
                     <CardTitle>Your Information</CardTitle>
@@ -493,6 +557,15 @@ export default function NewApplication() {
                         <span className="text-muted-foreground">Address:</span>{" "}
                         <span className="font-medium">{profile?.address}, {profile?.city}, {profile?.state} {profile?.zipCode}</span>
                       </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <h4 className="font-semibold">Qualifying Condition</h4>
+                    <div className="text-sm p-3 rounded-lg border bg-primary/5">
+                      <span className="font-medium" data-testid="text-review-condition-selection">
+                        {DISABILITY_CONDITIONS.find(c => c.value === form.getValues("disabilityCondition"))?.label || "Not selected"}
+                      </span>
                     </div>
                   </div>
 

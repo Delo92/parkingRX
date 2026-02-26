@@ -1127,6 +1127,7 @@ export async function registerRoutes(
         idNumber: formData.driverLicenseNumber || patient?.driverLicenseNumber || "",
         idExpirationDate: formData.idExpirationDate || "",
         idType: formData.idType || "",
+        disabilityCondition: formData.disabilityCondition || "",
       };
 
       const doctorData: Record<string, string> = {
@@ -2307,7 +2308,7 @@ export async function registerRoutes(
         res.status(403).json({ message: "Not authorized to update this profile" });
         return;
       }
-      const { fullName, licenseNumber, npiNumber, deaNumber, phone, fax, address, specialty, bio, state, formTemplate } = req.body;
+      const { fullName, licenseNumber, npiNumber, deaNumber, phone, fax, address, specialty, bio, state, formTemplate, gizmoFormUrl } = req.body;
       const updateData: Record<string, any> = {};
       if (fullName !== undefined) updateData.fullName = fullName;
       if (licenseNumber !== undefined) updateData.licenseNumber = licenseNumber;
@@ -2320,6 +2321,7 @@ export async function registerRoutes(
       if (bio !== undefined) updateData.bio = bio;
       if (state !== undefined) updateData.state = state;
       if (formTemplate !== undefined) updateData.formTemplate = formTemplate;
+      if (gizmoFormUrl !== undefined) updateData.gizmoFormUrl = gizmoFormUrl;
       const updated = await storage.updateDoctorProfile(req.params.id as string, updateData);
       res.json(updated);
     } catch (error: any) {

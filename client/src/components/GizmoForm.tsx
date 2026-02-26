@@ -114,6 +114,26 @@ const RADIO_AUTO_FILL: Record<string, { sourceField: string; valueMap: Record<st
       tribal_id_card: "tribal",
     },
   },
+  id: {
+    sourceField: "disabilityCondition",
+    valueMap: {
+      A: "7",
+      B: "8",
+      C: "9",
+      D: "10",
+      E: "11",
+      F: "12",
+      G: "13",
+      H: "14",
+      new: "1",
+      renewal: "2",
+      replacement: "3",
+      "1placard": "4",
+      "2placards": "5",
+      temporary: "15",
+      fiveyear: "16",
+    },
+  },
 };
 
 const DOCTOR_FORM_OFFSETS: Record<string, { x: number; y: number }> = {};
@@ -181,8 +201,10 @@ export function GizmoForm({ data, onClose }: GizmoFormProps) {
       setLoading(true);
       setError(null);
 
-      const proxyUrl = `/api/forms/proxy-pdf?url=${encodeURIComponent(data.gizmoFormUrl)}`;
-      const response = await fetch(proxyUrl);
+      const fetchUrl = data.gizmoFormUrl.startsWith("/")
+        ? data.gizmoFormUrl
+        : `/api/forms/proxy-pdf?url=${encodeURIComponent(data.gizmoFormUrl)}`;
+      const response = await fetch(fetchUrl);
       if (!response.ok) throw new Error("Failed to fetch PDF template");
 
       const bytes = await response.arrayBuffer();
@@ -341,7 +363,7 @@ export function GizmoForm({ data, onClose }: GizmoFormProps) {
           }
         }
 
-        const radioRegex = /\{radio_([a-zA-Z]+)_([a-zA-Z]+)\}/g;
+        const radioRegex = /\{radio_([a-zA-Z0-9]+)_([a-zA-Z0-9]+)\}/g;
         let radioMatch;
         while ((radioMatch = radioRegex.exec(fullText)) !== null) {
           const group = radioMatch[1].toLowerCase();

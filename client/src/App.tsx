@@ -30,6 +30,7 @@ import OwnerDashboard from "@/pages/dashboard/OwnerDashboard";
 import SiteSettings from "@/pages/dashboard/owner/SiteSettings";
 import RegistrationPage from "@/pages/dashboard/applicant/RegistrationPage";
 import DocumentsPage from "@/pages/dashboard/applicant/DocumentsPage";
+import FormViewerPage from "@/pages/dashboard/applicant/FormViewerPage";
 import PaymentsPage from "@/pages/dashboard/applicant/PaymentsPage";
 import SharedSettingsPage from "@/pages/dashboard/shared/SettingsPage";
 import SharedMessagesPage from "@/pages/dashboard/shared/MessagesPage";
@@ -88,6 +89,11 @@ function App() {
                   <Route path="/dashboard/applicant/registration">
                     <ProtectedRoute minLevel={1}>
                       <RegistrationPage />
+                    </ProtectedRoute>
+                  </Route>
+                  <Route path="/dashboard/applicant/documents/:applicationId/form">
+                    <ProtectedRoute minLevel={1}>
+                      <FormViewerPage />
                     </ProtectedRoute>
                   </Route>
                   <Route path="/dashboard/applicant/documents">

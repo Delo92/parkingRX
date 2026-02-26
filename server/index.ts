@@ -8,6 +8,7 @@ const app = express();
 const httpServer = createServer(app);
 
 app.use("/uploads", express.static(path.resolve(process.cwd(), "uploads")));
+app.use("/templates", express.static(path.resolve(process.cwd(), "public/templates")));
 
 declare module "http" {
   interface IncomingMessage {

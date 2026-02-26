@@ -15,8 +15,9 @@ import {
 import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
-import { Upload, FileText, Eye, FolderOpen, Printer, Calendar, Loader2 } from "lucide-react";
+import { Upload, FileText, Eye, FolderOpen, Printer, Calendar, Loader2, FileType } from "lucide-react";
 import { auth } from "@/lib/firebase";
+import { Link } from "wouter";
 
 interface DocumentRecord {
   id: string;
@@ -133,11 +134,22 @@ export default function DocumentsPage() {
                       <Button
                         variant="outline"
                         size="sm"
+                        asChild
+                        data-testid={`button-form-doc-${doc.id}`}
+                      >
+                        <Link href={`/dashboard/applicant/documents/${doc.applicationId}/form`}>
+                          <FileType className="h-4 w-4 mr-1" />
+                          View Form
+                        </Link>
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
                         onClick={() => handleViewDocument(doc)}
                         data-testid={`button-view-doc-${doc.id}`}
                       >
                         <Eye className="h-4 w-4 mr-1" />
-                        View
+                        View HTML
                       </Button>
                       <Button
                         size="sm"
