@@ -246,9 +246,81 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
 
+        {user.userLevel >= 3 && <AutoCompleteSettings />}
         {user.userLevel >= 3 && <AdminNotificationSettings />}
       </div>
     </DashboardLayout>
+  );
+}
+
+function AutoCompleteSettings() {
+  const { toast } = useToast();
+  const [isSaving, setIsSaving] = useState(false);
+
+  const { data: adminSettings } = useQuery<Record<string, any>>({
+    queryKey: ["/api/admin/settings"],
+  });
+
+  const autoComplete = adminSettings?.autoCompleteApplications || false;
+
+  const toggleAutoComplete = async (enabled: boolean) => {
+    setIsSaving(true);
+    try {
+      await apiRequest("PUT", "/api/admin/settings", {
+        autoCompleteApplications: enabled,
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/settings"] });
+      toast({
+        title: enabled ? "Auto-Complete Enabled" : "Auto-Complete Disabled",
+        description: enabled
+          ? "Applications will be automatically completed after payment. The doctor will receive a copy."
+          : "Applications will be sent to a doctor for manual review before completion.",
+      });
+    } catch (error: any) {
+      toast({
+        title: "Save Failed",
+        description: error.message || "Something went wrong",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center gap-2">
+          <Bell className="h-5 w-5" />
+          <CardTitle>Auto-Complete Applications</CardTitle>
+        </div>
+        <CardDescription>
+          When enabled, applications are automatically approved and completed after payment — 
+          no doctor review required. The patient receives their completed form immediately, 
+          and the assigned doctor gets a copy for their records.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium">
+              {autoComplete ? "Auto-Complete is ON" : "Auto-Complete is OFF"}
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              {autoComplete
+                ? "Applications skip doctor review and complete instantly after payment."
+                : "Applications are sent to a doctor for review before completion."}
+            </p>
+          </div>
+          <Switch
+            checked={autoComplete}
+            onCheckedChange={toggleAutoComplete}
+            disabled={isSaving}
+            data-testid="switch-auto-complete"
+          />
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
