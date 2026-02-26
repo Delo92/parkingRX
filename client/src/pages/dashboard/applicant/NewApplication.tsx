@@ -81,12 +81,39 @@ export default function NewApplication() {
   const preselectedPackage = params.get("package") || "";
 
   const [step, setStep] = useState(1);
-  const totalSteps = 4;
+  const totalSteps = 3;
   const [customFields, setCustomFields] = useState<Record<string, string>>({});
+  const [cardNumber, setCardNumber] = useState("");
+  const [cardExpMonth, setCardExpMonth] = useState("");
+  const [cardExpYear, setCardExpYear] = useState("");
+  const [cardCvv, setCardCvv] = useState("");
+  const [paymentProcessing, setPaymentProcessing] = useState(false);
+  const [paymentError, setPaymentError] = useState("");
 
   const { data: packages, isLoading: packagesLoading } = useQuery<Package[]>({
     queryKey: ["/api/packages"],
   });
+
+  const { data: paymentConfig } = useQuery<{
+    configured: boolean;
+    acceptJsUrl: string;
+    apiLoginId: string;
+    clientKey: string;
+  }>({
+    queryKey: ["/api/payment/config"],
+  });
+
+  useEffect(() => {
+    if (paymentConfig?.acceptJsUrl) {
+      const existing = document.querySelector(`script[src="${paymentConfig.acceptJsUrl}"]`);
+      if (!existing) {
+        const script = document.createElement("script");
+        script.src = paymentConfig.acceptJsUrl;
+        script.charset = "utf-8";
+        document.head.appendChild(script);
+      }
+    }
+  }, [paymentConfig?.acceptJsUrl]);
 
   const { data: profile, isLoading: profileLoading } = useQuery<any>({
     queryKey: ["/api/profile"],
@@ -148,56 +175,104 @@ export default function NewApplication() {
     if (draftLoaded.current) saveDraft();
   }, [watchedValues.packageId, watchedValues.disabilityCondition, watchedValues.reason, watchedValues.additionalInfo]);
 
-  const createApplication = useMutation({
-    mutationFn: async (data: ApplicationFormData) => {
-      const fullName = [profile?.firstName, profile?.middleName, profile?.lastName].filter(Boolean).join(" ");
-      const conditionLabel = DISABILITY_CONDITIONS.find(c => c.value === data.disabilityCondition)?.label || data.disabilityCondition;
-      const formData = {
-        ...data,
-        ...customFields,
-        fullName,
-        firstName: profile?.firstName,
-        middleName: profile?.middleName,
-        lastName: profile?.lastName,
-        email: profile?.email,
-        phone: profile?.phone,
-        dateOfBirth: profile?.dateOfBirth,
-        address: profile?.address,
-        city: profile?.city,
-        state: profile?.state,
-        zipCode: profile?.zipCode,
-        driverLicenseNumber: profile?.driverLicenseNumber,
-        medicalCondition: conditionLabel,
-        disabilityCondition: data.disabilityCondition,
-        ssn: profile?.ssn,
-        hasMedicare: profile?.hasMedicare,
-        isVeteran: profile?.isVeteran,
+  const buildFormData = () => {
+    const data = form.getValues();
+    const fullName = [profile?.firstName, profile?.middleName, profile?.lastName].filter(Boolean).join(" ");
+    const conditionLabel = DISABILITY_CONDITIONS.find(c => c.value === data.disabilityCondition)?.label || data.disabilityCondition;
+    return {
+      ...data,
+      ...customFields,
+      fullName,
+      firstName: profile?.firstName,
+      middleName: profile?.middleName,
+      lastName: profile?.lastName,
+      email: profile?.email,
+      phone: profile?.phone,
+      dateOfBirth: profile?.dateOfBirth,
+      address: profile?.address,
+      city: profile?.city,
+      state: profile?.state,
+      zipCode: profile?.zipCode,
+      driverLicenseNumber: profile?.driverLicenseNumber,
+      medicalCondition: conditionLabel,
+      disabilityCondition: data.disabilityCondition,
+      ssn: profile?.ssn,
+      hasMedicare: profile?.hasMedicare,
+      isVeteran: profile?.isVeteran,
+    };
+  };
+
+  const processPayment = async () => {
+    if (!cardNumber || !cardExpMonth || !cardExpYear || !cardCvv) {
+      setPaymentError("Please fill in all card fields");
+      return;
+    }
+
+    setPaymentProcessing(true);
+    setPaymentError("");
+
+    try {
+      const Accept = (window as any).Accept;
+      if (!Accept) {
+        throw new Error("Payment system is loading. Please wait a moment and try again.");
+      }
+
+      const secureData = {
+        authData: {
+          clientKey: paymentConfig?.clientKey || "",
+          apiLoginID: paymentConfig?.apiLoginId || "",
+        },
+        cardData: {
+          cardNumber: cardNumber.replace(/\s/g, ""),
+          month: cardExpMonth.padStart(2, "0"),
+          year: cardExpYear.length === 2 ? "20" + cardExpYear : cardExpYear,
+          cardCode: cardCvv,
+        },
       };
-      const response = await apiRequest("POST", "/api/applications", {
-        packageId: data.packageId,
-        formData,
-        paymentStatus: "awaiting_payment",
+
+      const opaqueData = await new Promise<{ dataDescriptor: string; dataValue: string }>((resolve, reject) => {
+        Accept.dispatchData(secureData, (response: any) => {
+          if (response.opaqueData) {
+            resolve(response.opaqueData);
+          } else {
+            const errorMsg = response.messages?.message?.[0]?.text || "Card validation failed";
+            reject(new Error(errorMsg));
+          }
+        });
       });
-      return response.json();
-    },
-    onSuccess: () => {
+
+      const formData = buildFormData();
+      const res = await apiRequest("POST", "/api/payment/charge", {
+        opaqueDataDescriptor: opaqueData.dataDescriptor,
+        opaqueDataValue: opaqueData.dataValue,
+        packageId: form.getValues("packageId"),
+        formData,
+      });
+      const result = await res.json();
+
+      if (!result.success) {
+        throw new Error(result.message || "Payment failed");
+      }
+
       queryClient.invalidateQueries({ queryKey: ["/api/applications"] });
       apiRequest("PUT", "/api/profile/draft-form", { draftFormData: {} }).catch(() => {});
       queryClient.invalidateQueries({ queryKey: ["/api/profile/draft-form"] });
       toast({
-        title: "Application Submitted!",
-        description: "Your application has been received. You will be contacted for payment processing.",
+        title: "Payment Successful!",
+        description: "Your application has been submitted and is being processed.",
       });
       setLocation("/dashboard/applicant");
-    },
-    onError: (error: any) => {
+    } catch (error: any) {
+      setPaymentError(error.message || "Payment processing failed");
       toast({
-        title: "Submission Failed",
-        description: error.message || "Something went wrong",
+        title: "Payment Failed",
+        description: error.message || "Please check your card details and try again.",
         variant: "destructive",
       });
-    },
-  });
+    } finally {
+      setPaymentProcessing(false);
+    }
+  };
 
   const selectedPackage = packages?.find((p) => p.id === form.watch("packageId"));
 
@@ -230,8 +305,8 @@ export default function NewApplication() {
     }
   };
 
-  const onSubmit = (data: ApplicationFormData) => {
-    createApplication.mutate(data);
+  const onSubmit = (e: any) => {
+    e.preventDefault();
   };
 
   if (profileLoading) {
@@ -305,7 +380,7 @@ export default function NewApplication() {
               Apply for Handicap Permit
             </h1>
             <p className="text-muted-foreground">
-              Step {step} of {totalSteps} — {step === 1 ? "Select Permit" : step === 2 ? "Your Information" : step === 3 ? "Payment" : "Review & Submit"}
+              Step {step} of {totalSteps} — {step === 1 ? "Select Permit" : step === 2 ? "Your Information" : "Review & Pay"}
             </p>
           </div>
         </div>
@@ -604,104 +679,161 @@ export default function NewApplication() {
             )}
 
             {step === 3 && (
-              <Card data-testid="step-payment">
-                <CardHeader>
-                  <CardTitle>Payment</CardTitle>
-                  <CardDescription>
-                    Review the cost of your selected permit
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  <div className="p-6 rounded-lg border bg-muted/30 text-center space-y-3">
-                    <p className="text-sm text-muted-foreground">Selected Permit</p>
-                    <p className="text-xl font-bold" data-testid="text-payment-package">{selectedPackage?.name}</p>
-                    <p className="text-4xl font-bold text-primary" data-testid="text-payment-price">
-                      ${selectedPackage ? (Number(selectedPackage.price) / 100).toFixed(2) : "0.00"}
-                    </p>
-                  </div>
-                  <Alert className="border-blue-500/50 bg-blue-500/10">
-                    <AlertCircle className="h-4 w-4 text-blue-600" />
-                    <AlertDescription className="text-blue-700 dark:text-blue-400">
-                      After submitting your application, our team will contact you to process your payment. Your application will be reviewed once payment is confirmed.
-                    </AlertDescription>
-                  </Alert>
-                </CardContent>
-              </Card>
-            )}
+              <div className="space-y-6">
+                <Card data-testid="step-review-submit">
+                  <CardHeader>
+                    <CardTitle>Review Your Order</CardTitle>
+                    <CardDescription>
+                      Verify your information before payment
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    <div className="p-4 rounded-lg border bg-muted/30">
+                      <p className="text-sm font-medium text-muted-foreground mb-1">Selected Permit Type</p>
+                      <p className="text-lg font-bold" data-testid="text-selected-package">{selectedPackage?.name}</p>
+                      <p className="text-sm text-muted-foreground mt-1">{selectedPackage?.description}</p>
+                      <p className="text-2xl font-bold text-primary mt-2" data-testid="text-selected-price">
+                        ${selectedPackage ? (Number(selectedPackage.price) / 100).toFixed(2) : "0.00"}
+                      </p>
+                    </div>
 
-            {step === 4 && (
-              <Card data-testid="step-review-submit">
-                <CardHeader>
-                  <CardTitle>Review & Submit</CardTitle>
-                  <CardDescription>
-                    Review your order details before submitting
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-6">
-                  <div className="p-4 rounded-lg border bg-muted/30">
-                    <p className="text-sm font-medium text-muted-foreground mb-1">Selected Permit Type</p>
-                    <p className="text-lg font-bold" data-testid="text-selected-package">{selectedPackage?.name}</p>
-                    <p className="text-sm text-muted-foreground mt-1">{selectedPackage?.description}</p>
-                    <p className="text-2xl font-bold text-primary mt-2" data-testid="text-selected-price">
-                      ${selectedPackage ? (Number(selectedPackage.price) / 100).toFixed(2) : "0.00"}
-                    </p>
-                  </div>
-
-                  <div className="space-y-3">
-                    <h4 className="font-semibold">Applicant Information</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
-                      <div>
-                        <span className="text-muted-foreground">Name:</span>{" "}
-                        <span className="font-medium">{fullName}</span>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">Email:</span>{" "}
-                        <span className="font-medium">{profile?.email}</span>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">Phone:</span>{" "}
-                        <span className="font-medium">{profile?.phone}</span>
-                      </div>
-                      <div>
-                        <span className="text-muted-foreground">DOB:</span>{" "}
-                        <span className="font-medium">{profile?.dateOfBirth}</span>
-                      </div>
-                      <div className="md:col-span-2">
-                        <span className="text-muted-foreground">Address:</span>{" "}
-                        <span className="font-medium">{profile?.address}, {profile?.city}, {profile?.state} {profile?.zipCode}</span>
+                    <div className="space-y-3">
+                      <h4 className="font-semibold">Applicant Information</h4>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                        <div>
+                          <span className="text-muted-foreground">Name:</span>{" "}
+                          <span className="font-medium">{fullName}</span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Email:</span>{" "}
+                          <span className="font-medium">{profile?.email}</span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">Phone:</span>{" "}
+                          <span className="font-medium">{profile?.phone}</span>
+                        </div>
+                        <div>
+                          <span className="text-muted-foreground">DOB:</span>{" "}
+                          <span className="font-medium">{profile?.dateOfBirth}</span>
+                        </div>
+                        <div className="md:col-span-2">
+                          <span className="text-muted-foreground">Address:</span>{" "}
+                          <span className="font-medium">{profile?.address}, {profile?.city}, {profile?.state} {profile?.zipCode}</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
 
-                  <div className="space-y-3">
-                    <h4 className="font-semibold">Qualifying Condition</h4>
-                    <div className="text-sm p-3 rounded-lg border bg-primary/5">
-                      <span className="font-medium" data-testid="text-review-condition-selection">
-                        {DISABILITY_CONDITIONS.find(c => c.value === form.getValues("disabilityCondition"))?.label || "Not selected"}
-                      </span>
+                    <div className="space-y-3">
+                      <h4 className="font-semibold">Qualifying Condition</h4>
+                      <div className="text-sm p-3 rounded-lg border bg-primary/5">
+                        <span className="font-medium" data-testid="text-review-condition-selection">
+                          {DISABILITY_CONDITIONS.find(c => c.value === form.getValues("disabilityCondition"))?.label || "Not selected"}
+                        </span>
+                      </div>
                     </div>
-                  </div>
 
-                  <div className="space-y-3">
-                    <h4 className="font-semibold">Permit Details</h4>
-                    <div className="text-sm">
-                      <span className="text-muted-foreground">Reason:</span>{" "}
-                      <span className="font-medium">{form.getValues("reason")}</span>
-                    </div>
-                    {form.getValues("additionalInfo") && (
-                      <div className="text-sm">
-                        <span className="text-muted-foreground">Additional Info:</span>{" "}
-                        <span className="font-medium">{form.getValues("additionalInfo")}</span>
+                    {form.getValues("reason") && (
+                      <div className="space-y-3">
+                        <h4 className="font-semibold">Permit Details</h4>
+                        <div className="text-sm">
+                          <span className="text-muted-foreground">Reason:</span>{" "}
+                          <span className="font-medium">{form.getValues("reason")}</span>
+                        </div>
                       </div>
                     )}
-                  </div>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
+
+                <Card data-testid="step-payment">
+                  <CardHeader>
+                    <CardTitle>Payment Information</CardTitle>
+                    <CardDescription>
+                      Enter your card details to complete your order
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="p-4 rounded-lg border bg-primary/5 text-center mb-4">
+                      <p className="text-sm text-muted-foreground">Amount Due</p>
+                      <p className="text-3xl font-bold text-primary" data-testid="text-payment-amount">
+                        ${selectedPackage ? (Number(selectedPackage.price) / 100).toFixed(2) : "0.00"}
+                      </p>
+                    </div>
+
+                    {paymentError && (
+                      <Alert variant="destructive">
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertDescription data-testid="text-payment-error">{paymentError}</AlertDescription>
+                      </Alert>
+                    )}
+
+                    <div className="space-y-2">
+                      <Label htmlFor="cardNumber">Card Number</Label>
+                      <Input
+                        id="cardNumber"
+                        placeholder="4111 1111 1111 1111"
+                        value={cardNumber}
+                        onChange={(e) => setCardNumber(e.target.value.replace(/[^\d\s]/g, "").slice(0, 19))}
+                        maxLength={19}
+                        data-testid="input-card-number"
+                        disabled={paymentProcessing}
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="expMonth">Month</Label>
+                        <Select value={cardExpMonth} onValueChange={setCardExpMonth} disabled={paymentProcessing}>
+                          <SelectTrigger data-testid="select-exp-month">
+                            <SelectValue placeholder="MM" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {Array.from({ length: 12 }, (_, i) => {
+                              const m = String(i + 1).padStart(2, "0");
+                              return <SelectItem key={m} value={m}>{m}</SelectItem>;
+                            })}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="expYear">Year</Label>
+                        <Select value={cardExpYear} onValueChange={setCardExpYear} disabled={paymentProcessing}>
+                          <SelectTrigger data-testid="select-exp-year">
+                            <SelectValue placeholder="YYYY" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {Array.from({ length: 10 }, (_, i) => {
+                              const y = String(new Date().getFullYear() + i);
+                              return <SelectItem key={y} value={y}>{y}</SelectItem>;
+                            })}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="cvv">CVV</Label>
+                        <Input
+                          id="cvv"
+                          placeholder="123"
+                          value={cardCvv}
+                          onChange={(e) => setCardCvv(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                          maxLength={4}
+                          data-testid="input-cvv"
+                          disabled={paymentProcessing}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground mt-2">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                      Your payment is processed securely through Authorize.Net. Card details are never stored on our servers.
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
             )}
 
             <div className="flex justify-between mt-6">
               {step > 1 ? (
-                <Button type="button" variant="outline" onClick={prevStep}>
+                <Button type="button" variant="outline" onClick={prevStep} disabled={paymentProcessing}>
                   <ArrowLeft className="mr-2 h-4 w-4" />
                   Back
                 </Button>
@@ -718,19 +850,20 @@ export default function NewApplication() {
                 </Button>
               ) : (
                 <Button
-                  type="submit"
-                  disabled={createApplication.isPending}
+                  type="button"
+                  onClick={processPayment}
+                  disabled={paymentProcessing}
                   data-testid="button-submit-application"
                 >
-                  {createApplication.isPending ? (
+                  {paymentProcessing ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Submitting...
+                      Processing Payment...
                     </>
                   ) : (
                     <>
                       <Check className="mr-2 h-4 w-4" />
-                      Submit Order
+                      Pay ${selectedPackage ? (Number(selectedPackage.price) / 100).toFixed(2) : "0.00"} & Submit
                     </>
                   )}
                 </Button>
