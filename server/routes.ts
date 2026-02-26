@@ -1125,6 +1125,7 @@ export async function registerRoutes(
         email: patient?.email || formData.email || "",
         medicalCondition: formData.medicalCondition || patient?.medicalCondition || "",
         idNumber: formData.driverLicenseNumber || patient?.driverLicenseNumber || "",
+        driverLicenseNumber: formData.driverLicenseNumber || patient?.driverLicenseNumber || "",
         idExpirationDate: formData.idExpirationDate || "",
         idType: formData.idType || "",
         disabilityCondition: formData.disabilityCondition || "",
