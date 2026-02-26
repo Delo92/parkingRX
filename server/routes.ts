@@ -846,6 +846,24 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/profile/draft-form", requireAuth, async (req, res) => {
+    try {
+      const user = await storage.getUser(req.user!.id);
+      res.json({ draftFormData: (user as any)?.draftFormData || {} });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
+  app.put("/api/profile/draft-form", requireAuth, async (req, res) => {
+    try {
+      await storage.updateUser(req.user!.id, { draftFormData: req.body.draftFormData || {} } as any);
+      res.json({ success: true });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   // ===========================================================================
   // CONFIG ROUTES
   // ===========================================================================
@@ -1505,9 +1523,12 @@ export async function registerRoutes(
 
       const workflowSteps = (pkg.workflowSteps as string[]) || ["Registration", "Payment", "Review", "Approval", "Completed"];
 
+      const draftData = (targetUser as any).draftFormData || {};
+      const draftCustomFields = draftData.customFields || {};
+
       const application = await storage.createApplication({
         userId: targetUser.id,
-        packageId,
+        packageId: draftData.packageId || packageId,
         currentStep: 1,
         totalSteps: workflowSteps.length,
         status: "pending",
@@ -1526,6 +1547,10 @@ export async function registerRoutes(
           city: targetUser.city || "",
           state: targetUser.state || "",
           zipCode: targetUser.zipCode || "",
+          disabilityCondition: draftData.disabilityCondition || "",
+          reason: draftData.reason || "",
+          additionalInfo: draftData.additionalInfo || "",
+          ...draftCustomFields,
         },
         paymentStatus: "paid",
         paymentAmount: pkg.price,
@@ -1539,6 +1564,8 @@ export async function registerRoutes(
           status: i === 0 ? "in-progress" : "pending",
         });
       }
+
+      await storage.updateUser(targetUser.id, { draftFormData: {} } as any);
 
       const adminSettings = await storage.getAdminSettings();
       const targetPatientState = targetUser.state || "";

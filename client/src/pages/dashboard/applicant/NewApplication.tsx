@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Link, useLocation, useSearch } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
@@ -104,6 +104,50 @@ export default function NewApplication() {
     },
   });
 
+  const { data: draftData, isLoading: draftLoading } = useQuery<{ draftFormData: Record<string, any> }>({
+    queryKey: ["/api/profile/draft-form"],
+  });
+
+  const draftLoaded = useRef(false);
+  useEffect(() => {
+    if (draftData?.draftFormData && !draftLoaded.current) {
+      draftLoaded.current = true;
+      const draft = draftData.draftFormData;
+      if (draft.packageId && !preselectedPackage) form.setValue("packageId", draft.packageId);
+      if (draft.disabilityCondition) form.setValue("disabilityCondition", draft.disabilityCondition);
+      if (draft.reason) form.setValue("reason", draft.reason);
+      if (draft.additionalInfo) form.setValue("additionalInfo", draft.additionalInfo);
+      if (draft.customFields) setCustomFields(draft.customFields);
+      if (draft.step && draft.step > 1) setStep(draft.step);
+    }
+  }, [draftData]);
+
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const saveDraft = useCallback(() => {
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      const values = form.getValues();
+      const draftFormData = {
+        packageId: values.packageId,
+        disabilityCondition: values.disabilityCondition,
+        reason: values.reason,
+        additionalInfo: values.additionalInfo,
+        customFields,
+        step,
+      };
+      apiRequest("PUT", "/api/profile/draft-form", { draftFormData }).catch(() => {});
+    }, 1000);
+  }, [customFields, step]);
+
+  useEffect(() => {
+    if (draftLoaded.current) saveDraft();
+  }, [customFields, step, saveDraft]);
+
+  const watchedValues = form.watch();
+  useEffect(() => {
+    if (draftLoaded.current) saveDraft();
+  }, [watchedValues.packageId, watchedValues.disabilityCondition, watchedValues.reason, watchedValues.additionalInfo]);
+
   const createApplication = useMutation({
     mutationFn: async (data: ApplicationFormData) => {
       const fullName = [profile?.firstName, profile?.middleName, profile?.lastName].filter(Boolean).join(" ");
@@ -138,6 +182,8 @@ export default function NewApplication() {
     },
     onSuccess: (application) => {
       queryClient.invalidateQueries({ queryKey: ["/api/applications"] });
+      apiRequest("PUT", "/api/profile/draft-form", { draftFormData: {} }).catch(() => {});
+      queryClient.invalidateQueries({ queryKey: ["/api/profile/draft-form"] });
       toast({
         title: "Order Submitted!",
         description: "Your handicap permit application has been submitted successfully.",
