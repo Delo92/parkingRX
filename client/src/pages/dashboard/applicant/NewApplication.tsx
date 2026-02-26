@@ -164,6 +164,15 @@ export default function NewApplication() {
       form.setError("disabilityCondition", { message: "Please select your qualifying condition" });
       return;
     }
+    if (step === 2 && selectedPackage) {
+      const fields = (selectedPackage as any).formFields || [];
+      for (const field of fields) {
+        if (field.required && !customFields[field.name]?.trim()) {
+          toast({ title: "Required Field", description: `Please fill in "${field.label || field.name}"`, variant: "destructive" });
+          return;
+        }
+      }
+    }
     if (step < totalSteps) {
       setStep(step + 1);
     }
@@ -460,6 +469,23 @@ export default function NewApplication() {
                                   ))}
                                 </SelectContent>
                               </Select>
+                            ) : field.type === "radio" ? (
+                              <div className="space-y-2 pt-1" data-testid={`radio-group-${field.name}`}>
+                                {(field.options || []).map((opt: string) => (
+                                  <label key={opt} className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${customFields[field.name] === opt ? "border-primary bg-primary/5" : "hover:bg-muted/50"}`}>
+                                    <input
+                                      type="radio"
+                                      name={field.name}
+                                      value={opt}
+                                      checked={customFields[field.name] === opt}
+                                      onChange={(e) => setCustomFields({ ...customFields, [field.name]: e.target.value })}
+                                      className="h-4 w-4 text-primary"
+                                      data-testid={`radio-${field.name}-${opt.toLowerCase().replace(/\s+/g, "_")}`}
+                                    />
+                                    <span className="text-sm">{opt}</span>
+                                  </label>
+                                ))}
+                              </div>
                             ) : (
                               <Input
                                 type={field.type === "phone" ? "tel" : field.type || "text"}

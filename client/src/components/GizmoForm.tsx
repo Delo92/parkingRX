@@ -132,18 +132,43 @@ const RADIO_AUTO_FILL: Record<string, { sourceField: string; valueMap: Record<st
       tribal_id_card: "tribal",
     },
   },
+  placardtype: {
+    sourceField: "placardType",
+    valueMap: {
+      new: "1",
+      renewal: "2",
+      replacement: "3",
+    },
+  },
+  placardcount: {
+    sourceField: "placardCount",
+    valueMap: {
+      "1": "4",
+      "1_placard": "4",
+      "2": "5",
+      "2_placards": "5",
+    },
+  },
   condition: {
     sourceField: "disabilityCondition",
     defaultOption: "7",
     valueMap: {
-      A: "7",
-      B: "8",
-      C: "9",
-      D: "10",
-      E: "11",
-      F: "12",
-      G: "13",
-      H: "14",
+      A: "7", a: "7",
+      B: "8", b: "8",
+      C: "9", c: "9",
+      D: "10", d: "10",
+      E: "11", e: "11",
+      F: "12", f: "12",
+      G: "13", g: "13",
+      H: "14", h: "14",
+    },
+  },
+  duration: {
+    sourceField: "duration",
+    valueMap: {
+      temporary: "15",
+      "5_year": "16",
+      "5year": "16",
     },
   },
 };
@@ -445,8 +470,10 @@ export function GizmoForm({ data, onClose }: GizmoFormProps) {
             let selected = false;
             const autoFill = RADIO_AUTO_FILL[group];
             if (autoFill) {
-              const patientVal = data.patientData[autoFill.sourceField] || "";
-              const expectedOption = autoFill.valueMap[patientVal];
+              const patientVal = String(data.patientData[autoFill.sourceField] || "");
+              const lowerVal = patientVal.toLowerCase();
+              const normalizedVal = lowerVal.replace(/[\s-]+/g, "_");
+              const expectedOption = autoFill.valueMap[patientVal] || autoFill.valueMap[lowerVal] || autoFill.valueMap[normalizedVal];
               if (expectedOption === option) {
                 selected = true;
               }
@@ -483,8 +510,10 @@ export function GizmoForm({ data, onClose }: GizmoFormProps) {
         let selected = false;
         const autoFill = RADIO_AUTO_FILL[group];
         if (autoFill) {
-          const patientVal = data.patientData[autoFill.sourceField] || "";
-          const expectedOption = autoFill.valueMap[patientVal];
+          const patientVal = String(data.patientData[autoFill.sourceField] || "");
+          const lowerVal = patientVal.toLowerCase();
+          const normalizedVal = lowerVal.replace(/[\s-]+/g, "_");
+          const expectedOption = autoFill.valueMap[patientVal] || autoFill.valueMap[lowerVal] || autoFill.valueMap[normalizedVal];
           if (expectedOption === option) {
             selected = true;
           }

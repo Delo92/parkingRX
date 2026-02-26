@@ -52,7 +52,7 @@ import { Plus, Pencil, Trash2, Loader2, X } from "lucide-react";
 const formFieldSchema = z.object({
   name: z.string().min(1),
   label: z.string().min(1),
-  type: z.enum(["text", "textarea", "select", "date", "email", "phone", "number"]),
+  type: z.enum(["text", "textarea", "select", "date", "email", "phone", "number", "radio"]),
   required: z.boolean().default(true),
   options: z.array(z.string()).optional(),
   placeholder: z.string().optional(),
@@ -474,12 +474,13 @@ export default function PackagesManagement() {
                             <SelectItem value="number">Number</SelectItem>
                             <SelectItem value="date">Date</SelectItem>
                             <SelectItem value="select">Dropdown</SelectItem>
+                            <SelectItem value="radio">Radio Buttons</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
-                      {field.type === "select" && (
+                      {(field.type === "select" || field.type === "radio") && (
                         <Input
-                          placeholder="Options (comma-separated)"
+                          placeholder="Options (comma-separated, e.g. New, Renewal, Replacement)"
                           value={(field.options || []).join(", ")}
                           onChange={(e) => updateFormField(index, { options: e.target.value.split(",").map(s => s.trim()).filter(Boolean) })}
                           data-testid={`input-field-options-${index}`}

@@ -1199,6 +1199,9 @@ export async function registerRoutes(
         idExpirationDate: formData.idExpirationDate || "",
         idType: formData.idType || "",
         disabilityCondition: formData.disabilityCondition || "",
+        placardType: formData.placardType || formData.placard_type || "",
+        placardCount: formData.placardCount || formData.placard_count || "",
+        duration: formData.duration || formData.placard_duration || "",
       };
 
       const doctorData: Record<string, string> = {
