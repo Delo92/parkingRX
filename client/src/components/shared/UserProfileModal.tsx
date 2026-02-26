@@ -1006,7 +1006,7 @@ export function UserProfileModal({ user: selectedUser, onClose, canEditLevel = t
 
       {showGizmoPreview && doctorProfileData.gizmoFormUrl && (
         <Dialog open={showGizmoPreview} onOpenChange={setShowGizmoPreview}>
-          <DialogContent className="max-w-[95vw] w-[95vw] max-h-[95vh] h-[95vh] p-0 overflow-auto">
+          <DialogContent className="max-w-[95vw] w-[95vw] max-h-[95vh] h-[95vh] p-0 overflow-auto [&>button.absolute]:hidden">
             <DialogHeader className="sr-only">
               <DialogTitle>PDF Form Preview</DialogTitle>
               <DialogDescription>Preview and fill the PDF form</DialogDescription>
