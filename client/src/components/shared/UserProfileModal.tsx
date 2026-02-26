@@ -174,6 +174,9 @@ export function UserProfileModal({ user: selectedUser, onClose, canEditLevel = t
 
   useEffect(() => {
     if (doctorProfile) {
+      console.log("[DEBUG] Loading doctorProfile - stateForms:", JSON.stringify(doctorProfile.stateForms));
+      console.log("[DEBUG] Loading doctorProfile - gizmoFormUrl:", doctorProfile.gizmoFormUrl);
+      console.log("[DEBUG] Loading doctorProfile - full keys:", Object.keys(doctorProfile));
       setDoctorProfileData({
         fullName: doctorProfile.fullName || "",
         licenseNumber: doctorProfile.licenseNumber || "",
@@ -317,6 +320,9 @@ export function UserProfileModal({ user: selectedUser, onClose, canEditLevel = t
 
   const handleSaveDoctorProfile = () => {
     if (!selectedUser) return;
+    console.log("[DEBUG] handleSaveDoctorProfile - stateForms:", JSON.stringify(doctorProfileData.stateForms));
+    console.log("[DEBUG] handleSaveDoctorProfile - profileId:", doctorProfile?.id);
+    console.log("[DEBUG] handleSaveDoctorProfile - full data keys:", Object.keys(doctorProfileData));
     saveDoctorProfile.mutate({
       profileId: doctorProfile?.id,
       data: doctorProfileData,

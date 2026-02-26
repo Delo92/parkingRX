@@ -2960,6 +2960,8 @@ export async function registerRoutes(
         return;
       }
       const { fullName, licenseNumber, npiNumber, deaNumber, phone, fax, address, specialty, bio, state, formTemplate, gizmoFormUrl, licensedStates, stateForms } = req.body;
+      console.log("[DEBUG] PUT doctor-profiles/:id - stateForms received:", JSON.stringify(stateForms));
+      console.log("[DEBUG] PUT doctor-profiles/:id - full req.body keys:", Object.keys(req.body));
       const updateData: Record<string, any> = {};
       if (fullName !== undefined) updateData.fullName = fullName;
       if (licenseNumber !== undefined) updateData.licenseNumber = licenseNumber;
@@ -2975,7 +2977,9 @@ export async function registerRoutes(
       if (gizmoFormUrl !== undefined) updateData.gizmoFormUrl = gizmoFormUrl;
       if (licensedStates !== undefined) updateData.licensedStates = licensedStates;
       if (stateForms !== undefined) updateData.stateForms = stateForms;
+      console.log("[DEBUG] PUT doctor-profiles/:id - updateData.stateForms:", JSON.stringify(updateData.stateForms));
       const updated = await storage.updateDoctorProfile(req.params.id as string, updateData);
+      console.log("[DEBUG] PUT doctor-profiles/:id - saved result stateForms:", JSON.stringify(updated?.stateForms));
       res.json(updated);
     } catch (error: any) {
       res.status(500).json({ message: error.message });
