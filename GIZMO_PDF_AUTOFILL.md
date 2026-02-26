@@ -402,6 +402,299 @@ The tokens will be invisible in the final output because the overlay input field
 
 ---
 
+## Admin UI: Managing Doctor PDF Templates
+
+The PDF template is managed per doctor inside the User Profile Modal. When an admin opens a doctor's profile, there is a **"Doctor"** tab that contains the doctor's credentials and the PDF form management section.
+
+### Where It Lives
+
+The UI is inside `client/src/components/shared/UserProfileModal.tsx`, in the doctor-specific tab. It is NOT a separate "Doctors" page — doctor management is done entirely within the User Management table by clicking on a doctor user.
+
+### State Variables Needed
+
+```typescript
+const [doctorProfileData, setDoctorProfileData] = useState<Record<string, any>>({});
+const [pdfUploading, setPdfUploading] = useState(false);
+const [showGizmoPreview, setShowGizmoPreview] = useState(false);
+```
+
+### UI Components in Order
+
+The PDF section appears after the doctor credential fields (name, license, NPI, DEA, specialty, phone, fax, address, state) and after a `<Separator />`.
+
+#### 1. Section Header
+
+```tsx
+<h4 className="text-sm font-semibold text-muted-foreground flex items-center gap-1.5">
+  <FileText className="h-4 w-4" />
+  PDF Auto-Fill Form
+</h4>
+```
+
+#### 2. Info Banner
+
+Explains what the upload does:
+
+```tsx
+<div className="p-3 bg-muted/50 border rounded-md text-sm text-muted-foreground flex items-start gap-2">
+  <Info className="h-4 w-4 mt-0.5 flex-shrink-0" />
+  <span>
+    Upload a PDF form that will be auto-filled with patient and doctor data
+    when an application is approved. The form fields will be matched automatically.
+  </span>
+</div>
+```
+
+#### 3. Uploaded Status Card (shown when a PDF is already uploaded)
+
+Shows a green confirmation with the filename, plus "Preview & Fill" and "Remove" buttons:
+
+```tsx
+{doctorProfileData.gizmoFormUrl && (
+  <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-md overflow-hidden">
+    <div className="flex items-center justify-between gap-2">
+      <div className="flex items-center gap-2 text-sm text-green-700 dark:text-green-300 min-w-0">
+        <CheckCircle className="h-4 w-4 flex-shrink-0" />
+        <span className="font-medium">PDF form uploaded</span>
+      </div>
+      <div className="flex items-center gap-1 flex-shrink-0">
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={() => setShowGizmoPreview(true)}
+        >
+          <FileText className="h-3 w-3 mr-1" /> Preview & Fill
+        </Button>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="text-destructive hover:text-destructive"
+          onClick={() => setDoctorProfileData({ ...doctorProfileData, gizmoFormUrl: "" })}
+        >
+          <Trash2 className="h-3 w-3 mr-1" /> Remove
+        </Button>
+      </div>
+    </div>
+    <p className="text-xs text-muted-foreground mt-1 truncate max-w-full break-all">
+      {doctorProfileData.gizmoFormUrl.split("/").pop()}
+    </p>
+  </div>
+)}
+```
+
+Key details:
+- The filename display uses `.split("/").pop()` to show only the filename, not the full Firebase Storage URL
+- The container has `overflow-hidden` to prevent long URLs from breaking the layout
+- "Remove" clears the `gizmoFormUrl` from local state (saved when the profile is saved)
+- "Preview & Fill" opens the GizmoForm in a full-screen dialog
+
+#### 4. Upload Button
+
+A hidden file input triggered by a styled button. The label changes based on whether a PDF is already uploaded:
+
+```tsx
+<div className="space-y-1.5">
+  <Label>{doctorProfileData.gizmoFormUrl ? "Replace PDF Form" : "Upload PDF Form"}</Label>
+  <div className="flex items-center gap-2">
+    <input
+      type="file"
+      accept=".pdf"
+      className="hidden"
+      id="pdf-form-upload"
+      onChange={async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        if (!doctorProfile?.id) {
+          toast({ title: "Save doctor profile first", variant: "destructive" });
+          return;
+        }
+        setPdfUploading(true);
+        try {
+          const formData = new FormData();
+          formData.append("file", file);
+          const token = await getIdToken();
+          const res = await fetch(
+            `/api/admin/doctor-templates/${doctorProfile.id}/gizmo-form`,
+            {
+              method: "POST",
+              headers: token ? { Authorization: `Bearer ${token}` } : {},
+              body: formData,
+            }
+          );
+          if (!res.ok) throw new Error((await res.json()).message || "Upload failed");
+          const data = await res.json();
+          setDoctorProfileData({ ...doctorProfileData, gizmoFormUrl: data.url });
+          toast({ title: "PDF Form Uploaded" });
+        } catch (err: any) {
+          toast({ title: "Upload Failed", description: err.message, variant: "destructive" });
+        } finally {
+          setPdfUploading(false);
+          e.target.value = "";
+        }
+      }}
+    />
+    <Button
+      type="button"
+      variant="outline"
+      className="w-full"
+      disabled={pdfUploading || !doctorProfile?.id}
+      onClick={() => document.getElementById("pdf-form-upload")?.click()}
+    >
+      {pdfUploading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Upload className="h-4 w-4 mr-2" />}
+      {pdfUploading ? "Uploading..." : "Choose PDF File"}
+    </Button>
+  </div>
+  {!doctorProfile?.id && (
+    <p className="text-xs text-amber-600 dark:text-amber-400">
+      Save the doctor profile first, then you can upload a PDF form.
+    </p>
+  )}
+</div>
+```
+
+Key details:
+- The doctor profile must be saved first before uploading (needs the profile ID for the upload endpoint)
+- The upload goes to `POST /api/admin/doctor-templates/:doctorProfileId/gizmo-form`
+- On success, the returned URL is stored in local state and will be saved to the doctor profile when the user clicks Save
+- The file input is reset after each upload with `e.target.value = ""`
+
+#### 5. Preview Dialog (full-screen GizmoForm)
+
+When "Preview & Fill" is clicked, a full-screen dialog opens with the GizmoForm component:
+
+```tsx
+{showGizmoPreview && doctorProfileData.gizmoFormUrl && (
+  <Dialog open={showGizmoPreview} onOpenChange={setShowGizmoPreview}>
+    <DialogContent className="max-w-[95vw] w-[95vw] max-h-[95vh] h-[95vh] p-0 overflow-auto [&>button.absolute]:hidden">
+      <DialogHeader className="sr-only">
+        <DialogTitle>PDF Form Preview</DialogTitle>
+        <DialogDescription>Preview and fill the PDF form</DialogDescription>
+      </DialogHeader>
+      <GizmoForm
+        data={{
+          success: true,
+          patientData: {},
+          doctorData: {
+            firstName: doctorProfileData.fullName?.split(" ")[0] || "",
+            lastName: doctorProfileData.fullName?.split(" ").slice(1).join(" ") || "",
+            phone: doctorProfileData.phone || "",
+            address: doctorProfileData.address || "",
+            state: doctorProfileData.state || "",
+            licenseNumber: doctorProfileData.licenseNumber || "",
+            npiNumber: doctorProfileData.npiNumber || "",
+            deaNumber: doctorProfileData.deaNumber || "",
+            specialty: doctorProfileData.specialty || "",
+            fax: doctorProfileData.fax || "",
+          },
+          gizmoFormUrl: doctorProfileData.gizmoFormUrl,
+          generatedDate: new Date().toLocaleDateString(),
+          patientName: "Test Patient",
+        }}
+        onClose={() => setShowGizmoPreview(false)}
+      />
+    </DialogContent>
+  </Dialog>
+)}
+```
+
+Key details:
+- The dialog is 95% of the viewport in both dimensions
+- `[&>button.absolute]:hidden` hides the default dialog X button because it gets covered by the GizmoForm toolbar — the "Back" button inside GizmoForm is used to close instead
+- `patientData` is empty `{}` for the admin preview (no patient data to fill in)
+- `doctorData` is populated from the current doctor profile fields so the admin can see what the doctor's fields look like when filled
+- `p-0` removes padding so GizmoForm fills the whole dialog
+
+---
+
+## Applicant-Facing UI: FormViewerPage
+
+The applicant sees their filled form at the route `/dashboard/applicant/documents/:applicationId/form`.
+
+### Page Component
+
+`client/src/pages/dashboard/applicant/FormViewerPage.tsx`
+
+This page:
+1. Gets the `applicationId` from the URL params
+2. Fetches the form data from `GET /api/forms/data/:applicationId`
+3. Renders the `GizmoForm` component with that data
+4. Shows a "Back to Documents" link if no PDF template is assigned
+
+```tsx
+export default function FormViewerPage() {
+  const params = useParams<{ applicationId: string }>();
+  const applicationId = params.applicationId;
+
+  const { data, isLoading, error } = useQuery<GizmoFormData>({
+    queryKey: ["/api/forms/data", applicationId],
+    queryFn: async () => {
+      const res = await fetch(`/api/forms/data/${applicationId}`, {
+        headers: {
+          Authorization: `Bearer ${await auth.currentUser?.getIdToken()}`,
+        },
+      });
+      if (!res.ok) throw new Error("Failed to load form data");
+      return res.json();
+    },
+    enabled: !!applicationId,
+  });
+
+  return (
+    <DashboardLayout>
+      {data && data.gizmoFormUrl && (
+        <GizmoForm data={data} onClose={() => window.history.back()} />
+      )}
+    </DashboardLayout>
+  );
+}
+```
+
+The `onClose` uses `window.history.back()` since this is a standalone page, not a dialog.
+
+### Route Registration
+
+In `client/src/App.tsx`, register the route:
+
+```tsx
+<Route path="/dashboard/applicant/documents/:applicationId/form" component={FormViewerPage} />
+```
+
+---
+
+## GizmoForm Component Props
+
+```typescript
+interface GizmoFormProps {
+  data: GizmoFormData;
+  onClose?: () => void;  // If provided, shows a "Back" button in the toolbar
+}
+
+interface GizmoFormData {
+  success: boolean;
+  patientData: Record<string, string>;   // Patient field values
+  doctorData: Record<string, string>;    // Doctor field values
+  gizmoFormUrl: string | null;           // URL to the PDF template
+  generatedDate: string;                 // Today's date for the {date} field
+  patientName: string;                   // Display name for the header
+}
+```
+
+### GizmoForm Toolbar
+
+The toolbar at the top of the GizmoForm includes:
+- **Back button** (if `onClose` is provided) — closes the form
+- **Mode badge** — shows "AcroForm Mode" or "Placeholder Mode"
+- **Field count badge** — shows matched field count (AcroForm) or field + radio count (Placeholder)
+- **Zoom controls** — zoom in/out, shows current percentage (default 100%)
+- **Print button** — generates a filled PDF and opens print dialog
+- **Download PDF button** — generates a filled PDF and triggers download
+
+The downloaded file is named: `{FirstName}_{LastName}_Physician_Recommendation_{MM-DD-YYYY}.pdf`
+
+---
+
 ## Key Files
 
 | File | Purpose |
