@@ -28,6 +28,7 @@ import { useConfig } from "@/contexts/ConfigContext";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import type { User, Application, UserNote } from "@shared/schema";
+import { GizmoForm, type GizmoFormData } from "@/components/GizmoForm";
 import { 
   Loader2, 
   Mail, 
@@ -109,6 +110,7 @@ export function UserProfileModal({ user: selectedUser, onClose, canEditLevel = t
   const [showPlaceholders, setShowPlaceholders] = useState(false);
   const [doctorProfileData, setDoctorProfileData] = useState<Record<string, any>>({});
   const [pdfUploading, setPdfUploading] = useState(false);
+  const [showGizmoPreview, setShowGizmoPreview] = useState(false);
 
   const isUserDoctor = selectedUser?.userLevel === 2;
 
@@ -831,10 +833,10 @@ export function UserProfileModal({ user: selectedUser, onClose, canEditLevel = t
                           type="button"
                           variant="ghost"
                           size="sm"
-                          onClick={() => window.open(doctorProfileData.gizmoFormUrl, "_blank")}
-                          data-testid="button-view-pdf-form"
+                          onClick={() => setShowGizmoPreview(true)}
+                          data-testid="button-preview-pdf-form"
                         >
-                          <ExternalLink className="h-3 w-3 mr-1" /> View
+                          <FileText className="h-3 w-3 mr-1" /> Preview & Fill
                         </Button>
                         <Button
                           type="button"
@@ -1001,6 +1003,35 @@ export function UserProfileModal({ user: selectedUser, onClose, canEditLevel = t
           </Button>
         </DialogFooter>
       </DialogContent>
+
+      {showGizmoPreview && doctorProfileData.gizmoFormUrl && (
+        <Dialog open={showGizmoPreview} onOpenChange={setShowGizmoPreview}>
+          <DialogContent className="max-w-[95vw] w-[95vw] max-h-[95vh] h-[95vh] p-0 overflow-hidden">
+            <GizmoForm
+              data={{
+                success: true,
+                patientData: {},
+                doctorData: {
+                  firstName: doctorProfileData.fullName?.split(" ")[0] || "",
+                  lastName: doctorProfileData.fullName?.split(" ").slice(1).join(" ") || "",
+                  phone: doctorProfileData.phone || "",
+                  address: doctorProfileData.address || "",
+                  state: doctorProfileData.state || "",
+                  licenseNumber: doctorProfileData.licenseNumber || "",
+                  npiNumber: doctorProfileData.npiNumber || "",
+                  deaNumber: doctorProfileData.deaNumber || "",
+                  specialty: doctorProfileData.specialty || "",
+                  fax: doctorProfileData.fax || "",
+                },
+                gizmoFormUrl: doctorProfileData.gizmoFormUrl,
+                generatedDate: new Date().toLocaleDateString(),
+                patientName: "Test Patient",
+              }}
+              onClose={() => setShowGizmoPreview(false)}
+            />
+          </DialogContent>
+        </Dialog>
+      )}
     </Dialog>
   );
 }
