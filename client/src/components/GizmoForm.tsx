@@ -208,15 +208,16 @@ export function GizmoForm({ data, onClose }: GizmoFormProps) {
       const response = await fetch(fetchUrl);
       if (!response.ok) throw new Error("Failed to fetch PDF template");
 
-      const bytes = await response.arrayBuffer();
+      const originalBytes = await response.arrayBuffer();
+      const bytes = originalBytes.slice(0);
       setPdfBytes(bytes);
 
-      const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(bytes) }).promise;
+      const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(originalBytes.slice(0)) }).promise;
       setPdfDoc(pdf);
       setTotalPages(pdf.numPages);
 
       const { PDFDocument } = await import("pdf-lib");
-      const pdfLibDoc = await PDFDocument.load(bytes);
+      const pdfLibDoc = await PDFDocument.load(originalBytes.slice(0));
       const form = pdfLibDoc.getForm();
       const fields = form.getFields();
 
@@ -252,8 +253,9 @@ export function GizmoForm({ data, onClose }: GizmoFormProps) {
           }
 
           const filledBytes = await pdfLibDoc.save();
-          setPdfBytes(filledBytes.buffer as ArrayBuffer);
-          const filledPdf = await pdfjsLib.getDocument({ data: filledBytes }).promise;
+          const filledBuffer = filledBytes.buffer as ArrayBuffer;
+          setPdfBytes(filledBuffer.slice(0));
+          const filledPdf = await pdfjsLib.getDocument({ data: new Uint8Array(filledBuffer.slice(0)) }).promise;
           setPdfDoc(filledPdf);
           setLoading(false);
           return;
@@ -472,7 +474,7 @@ export function GizmoForm({ data, onClose }: GizmoFormProps) {
     try {
       setDownloading(true);
       const { PDFDocument, rgb, StandardFonts } = await import("pdf-lib");
-      const pdfLibDoc = await PDFDocument.load(pdfBytes);
+      const pdfLibDoc = await PDFDocument.load(pdfBytes.slice(0));
       const font = await pdfLibDoc.embedFont(StandardFonts.Helvetica);
 
       if (mode === "acroform") {
@@ -549,7 +551,7 @@ export function GizmoForm({ data, onClose }: GizmoFormProps) {
     if (!pdfBytes) return;
     try {
       const { PDFDocument, rgb, StandardFonts } = await import("pdf-lib");
-      const pdfLibDoc = await PDFDocument.load(pdfBytes);
+      const pdfLibDoc = await PDFDocument.load(pdfBytes.slice(0));
       const font = await pdfLibDoc.embedFont(StandardFonts.Helvetica);
 
       if (mode === "acroform") {
