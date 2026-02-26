@@ -182,7 +182,7 @@ export function GizmoForm({ data, onClose }: GizmoFormProps) {
   const [pdfDoc, setPdfDoc] = useState<pdfjsLib.PDFDocumentProxy | null>(null);
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const [scale, setScale] = useState(1.5);
+  const [scale, setScale] = useState(1.0);
   const [placeholderFields, setPlaceholderFields] = useState<PlaceholderField[]>([]);
   const [radioFields, setRadioFields] = useState<RadioField[]>([]);
   const [acroFormFields, setAcroFormFields] = useState<{ name: string; normalizedName: string; value: string; matched: boolean }[]>([]);
@@ -248,14 +248,33 @@ export function GizmoForm({ data, onClose }: GizmoFormProps) {
               try {
                 const field = form.getTextField(af.name);
                 field.setText(af.value);
+                field.setFontSize(10);
+                field.updateAppearances();
               } catch {}
             }
           }
 
-          const filledBytes = await pdfLibDoc.save();
-          const filledBuffer = filledBytes.buffer as ArrayBuffer;
-          setPdfBytes(filledBuffer.slice(0));
-          const filledPdf = await pdfjsLib.getDocument({ data: new Uint8Array(filledBuffer.slice(0)) }).promise;
+          const previewDoc = await PDFDocument.load(originalBytes.slice(0));
+          const previewForm = previewDoc.getForm();
+          for (const af of acroFields) {
+            if (af.matched && af.value) {
+              try {
+                const pf = previewForm.getTextField(af.name);
+                pf.setText(af.value);
+                pf.setFontSize(10);
+                pf.updateAppearances();
+              } catch {}
+            }
+          }
+          previewForm.flatten();
+          const previewBytes = await previewDoc.save();
+          const previewBuffer = previewBytes.buffer as ArrayBuffer;
+
+          const editableBytes = await pdfLibDoc.save();
+          const editableBuffer = editableBytes.buffer as ArrayBuffer;
+          setPdfBytes(editableBuffer.slice(0));
+
+          const filledPdf = await pdfjsLib.getDocument({ data: new Uint8Array(previewBuffer.slice(0)) }).promise;
           setPdfDoc(filledPdf);
           setLoading(false);
           return;
@@ -422,17 +441,29 @@ export function GizmoForm({ data, onClose }: GizmoFormProps) {
   }, [loadPdf]);
 
   const renderPage = useCallback(async () => {
-    if (!pdfDoc || !canvasRef.current) return;
+    if (!pdfDoc) return;
 
-    const page = await pdfDoc.getPage(currentPage);
-    const viewport = page.getViewport({ scale });
-    const canvas = canvasRef.current;
-    const ctx = canvas.getContext("2d")!;
+    const tryRender = async (retries = 5): Promise<void> => {
+      const canvas = canvasRef.current;
+      if (!canvas) {
+        if (retries > 0) {
+          await new Promise((r) => setTimeout(r, 100));
+          return tryRender(retries - 1);
+        }
+        return;
+      }
 
-    canvas.width = viewport.width;
-    canvas.height = viewport.height;
+      const page = await pdfDoc.getPage(currentPage);
+      const viewport = page.getViewport({ scale });
+      const ctx = canvas.getContext("2d")!;
 
-    await page.render({ canvasContext: ctx, viewport }).promise;
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+
+      await page.render({ canvasContext: ctx, viewport }).promise;
+    };
+
+    await tryRender();
   }, [pdfDoc, currentPage, scale]);
 
   useEffect(() => {
@@ -612,9 +643,14 @@ export function GizmoForm({ data, onClose }: GizmoFormProps) {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 p-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div className="flex items-center gap-2">
+          {onClose && (
+            <Button variant="outline" size="sm" onClick={onClose} data-testid="button-close-form">
+              <ChevronLeft className="h-4 w-4 mr-1" /> Back
+            </Button>
+          )}
           <Badge variant="secondary" data-testid="badge-form-mode">
             {mode === "acroform" ? "AcroForm Mode" : "Placeholder Mode"}
           </Badge>
@@ -644,7 +680,7 @@ export function GizmoForm({ data, onClose }: GizmoFormProps) {
       </div>
 
       <div className="flex gap-4">
-        <div className="flex-1 overflow-auto border rounded-lg bg-gray-100 dark:bg-gray-900" ref={containerRef}>
+        <div className="flex-1 overflow-auto border rounded-lg bg-white" ref={containerRef}>
           <div className="relative inline-block" style={{ minWidth: "fit-content" }}>
             <canvas ref={canvasRef} className="block" />
 
@@ -655,7 +691,7 @@ export function GizmoForm({ data, onClose }: GizmoFormProps) {
                   key={`field-${globalIdx}`}
                   value={field.value}
                   onChange={(e) => updateFieldValue(globalIdx, e.target.value)}
-                  className="absolute bg-yellow-50/80 dark:bg-yellow-900/30 border-yellow-400 text-xs h-6 px-1"
+                  className="absolute bg-yellow-50/80 border-yellow-400 text-xs h-6 px-1 text-black"
                   style={{
                     left: field.x * scale,
                     top: field.y * scale,
