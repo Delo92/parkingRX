@@ -56,6 +56,10 @@ const formFieldSchema = z.object({
   required: z.boolean().default(true),
   options: z.array(z.string()).optional(),
   placeholder: z.string().optional(),
+  radioOptions: z.array(z.object({
+    radioId: z.string(),
+    text: z.string(),
+  })).optional(),
 });
 
 const packageSchema = z.object({
@@ -454,7 +458,7 @@ export default function PackagesManagement() {
                       </div>
                       <div className="grid grid-cols-2 gap-2">
                         <Input
-                          placeholder="Field label"
+                          placeholder="Field label (e.g. Type of Placard)"
                           value={field.label}
                           onChange={(e) => updateFormField(index, { label: e.target.value, name: e.target.value.toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "") })}
                           data-testid={`input-field-label-${index}`}
@@ -478,13 +482,56 @@ export default function PackagesManagement() {
                           </SelectContent>
                         </Select>
                       </div>
-                      {(field.type === "select" || field.type === "radio") && (
+                      {field.type === "select" && (
                         <Input
-                          placeholder="Options (comma-separated, e.g. New, Renewal, Replacement)"
+                          placeholder="Options (comma-separated)"
                           value={(field.options || []).join(", ")}
                           onChange={(e) => updateFormField(index, { options: e.target.value.split(",").map(s => s.trim()).filter(Boolean) })}
                           data-testid={`input-field-options-${index}`}
                         />
+                      )}
+                      {field.type === "radio" && (
+                        <div className="space-y-2 pt-1">
+                          <p className="text-xs text-muted-foreground">Each option maps to a specific radio button on the PDF. Enter the radio ID number and the statement the patient will see.</p>
+                          {(field.radioOptions || []).map((ro, roIdx) => (
+                            <div key={roIdx} className="flex items-center gap-2">
+                              <Input
+                                placeholder="Radio ID"
+                                value={ro.radioId}
+                                onChange={(e) => {
+                                  const updated = [...(field.radioOptions || [])];
+                                  updated[roIdx] = { ...updated[roIdx], radioId: e.target.value };
+                                  updateFormField(index, { radioOptions: updated });
+                                }}
+                                className="w-24 flex-shrink-0"
+                                data-testid={`input-radio-id-${index}-${roIdx}`}
+                              />
+                              <Input
+                                placeholder="Statement shown to patient"
+                                value={ro.text}
+                                onChange={(e) => {
+                                  const updated = [...(field.radioOptions || [])];
+                                  updated[roIdx] = { ...updated[roIdx], text: e.target.value };
+                                  updateFormField(index, { radioOptions: updated });
+                                }}
+                                className="flex-1"
+                                data-testid={`input-radio-text-${index}-${roIdx}`}
+                              />
+                              <Button type="button" variant="ghost" size="icon" className="h-7 w-7 flex-shrink-0" onClick={() => {
+                                const updated = (field.radioOptions || []).filter((_, i) => i !== roIdx);
+                                updateFormField(index, { radioOptions: updated });
+                              }}>
+                                <X className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          ))}
+                          <Button type="button" variant="outline" size="sm" onClick={() => {
+                            const updated = [...(field.radioOptions || []), { radioId: "", text: "" }];
+                            updateFormField(index, { radioOptions: updated });
+                          }} data-testid={`button-add-radio-option-${index}`}>
+                            <Plus className="h-3 w-3 mr-1" /> Add Option
+                          </Button>
+                        </div>
                       )}
                       <div className="flex items-center gap-2">
                         <Switch

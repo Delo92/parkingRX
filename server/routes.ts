@@ -1217,6 +1217,18 @@ export async function registerRoutes(
         npiNumber: doctorProfile?.npiNumber || "",
       };
 
+      const selectedRadioIds: string[] = [];
+      if (pkg?.requiredFields && Array.isArray(pkg.requiredFields)) {
+        for (const field of pkg.requiredFields as any[]) {
+          if (field.radioOptions && Array.isArray(field.radioOptions)) {
+            const val = formData[field.name];
+            if (val) {
+              selectedRadioIds.push(String(val));
+            }
+          }
+        }
+      }
+
       const result: any = {
         success: true,
         patientData,
@@ -1226,6 +1238,7 @@ export async function registerRoutes(
         patientName: `${patientData.firstName} ${patientData.lastName}`.trim(),
         applicationId: application.id,
         packageName: pkg?.name || "Service",
+        selectedRadioIds,
       };
 
       res.json(result);

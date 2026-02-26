@@ -471,7 +471,22 @@ export default function NewApplication() {
                               </Select>
                             ) : field.type === "radio" ? (
                               <div className="space-y-2 pt-1" data-testid={`radio-group-${field.name}`}>
-                                {(field.options || []).map((opt: string) => (
+                                {field.radioOptions && field.radioOptions.length > 0 ? (
+                                  field.radioOptions.map((ro: any) => (
+                                    <label key={ro.radioId} className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${customFields[field.name] === ro.radioId ? "border-primary bg-primary/5" : "hover:bg-muted/50"}`}>
+                                      <input
+                                        type="radio"
+                                        name={field.name}
+                                        value={ro.radioId}
+                                        checked={customFields[field.name] === ro.radioId}
+                                        onChange={(e) => setCustomFields({ ...customFields, [field.name]: e.target.value })}
+                                        className="h-4 w-4 text-primary"
+                                        data-testid={`radio-${field.name}-${ro.radioId}`}
+                                      />
+                                      <span className="text-sm">{ro.text}</span>
+                                    </label>
+                                  ))
+                                ) : (field.options || []).map((opt: string) => (
                                   <label key={opt} className={`flex items-center gap-3 p-3 border rounded-lg cursor-pointer transition-colors ${customFields[field.name] === opt ? "border-primary bg-primary/5" : "hover:bg-muted/50"}`}>
                                     <input
                                       type="radio"

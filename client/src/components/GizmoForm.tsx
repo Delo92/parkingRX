@@ -19,6 +19,7 @@ export interface GizmoFormData {
   gizmoFormUrl: string | null;
   generatedDate: string;
   patientName: string;
+  selectedRadioIds?: string[];
 }
 
 interface PlaceholderField {
@@ -358,6 +359,7 @@ export function GizmoForm({ data, onClose }: GizmoFormProps) {
   const extractPlaceholdersFromPdf = async (pdf: pdfjsLib.PDFDocumentProxy) => {
     const fields: PlaceholderField[] = [];
     const radios: RadioField[] = [];
+    const selectedRadioIds = new Set(data.selectedRadioIds || []);
 
     interface TextItem {
       str: string;
@@ -467,15 +469,17 @@ export function GizmoForm({ data, onClose }: GizmoFormProps) {
             const y = viewport.height - anchorItem.transform[5] + offsets.y;
             const fontSize = anchorItem.height || 12;
 
-            let selected = false;
-            const autoFill = RADIO_AUTO_FILL[group];
-            if (autoFill) {
-              const patientVal = String(data.patientData[autoFill.sourceField] || "");
-              const lowerVal = patientVal.toLowerCase();
-              const normalizedVal = lowerVal.replace(/[\s-]+/g, "_");
-              const expectedOption = autoFill.valueMap[patientVal] || autoFill.valueMap[lowerVal] || autoFill.valueMap[normalizedVal];
-              if (expectedOption === option) {
-                selected = true;
+            let selected = selectedRadioIds.has(option);
+            if (!selected) {
+              const autoFill = RADIO_AUTO_FILL[group];
+              if (autoFill) {
+                const patientVal = String(data.patientData[autoFill.sourceField] || "");
+                const lowerVal = patientVal.toLowerCase();
+                const normalizedVal = lowerVal.replace(/[\s-]+/g, "_");
+                const expectedOption = autoFill.valueMap[patientVal] || autoFill.valueMap[lowerVal] || autoFill.valueMap[normalizedVal];
+                if (expectedOption === option) {
+                  selected = true;
+                }
               }
             }
 
@@ -507,15 +511,17 @@ export function GizmoForm({ data, onClose }: GizmoFormProps) {
         const y = viewport.height - itemY + offsets.y;
         const fontSize = itemHeight || 12;
 
-        let selected = false;
-        const autoFill = RADIO_AUTO_FILL[group];
-        if (autoFill) {
-          const patientVal = String(data.patientData[autoFill.sourceField] || "");
-          const lowerVal = patientVal.toLowerCase();
-          const normalizedVal = lowerVal.replace(/[\s-]+/g, "_");
-          const expectedOption = autoFill.valueMap[patientVal] || autoFill.valueMap[lowerVal] || autoFill.valueMap[normalizedVal];
-          if (expectedOption === option) {
-            selected = true;
+        let selected = selectedRadioIds.has(option);
+        if (!selected) {
+          const autoFill = RADIO_AUTO_FILL[group];
+          if (autoFill) {
+            const patientVal = String(data.patientData[autoFill.sourceField] || "");
+            const lowerVal = patientVal.toLowerCase();
+            const normalizedVal = lowerVal.replace(/[\s-]+/g, "_");
+            const expectedOption = autoFill.valueMap[patientVal] || autoFill.valueMap[lowerVal] || autoFill.valueMap[normalizedVal];
+            if (expectedOption === option) {
+              selected = true;
+            }
           }
         }
 
