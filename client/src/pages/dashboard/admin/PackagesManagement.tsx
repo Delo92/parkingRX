@@ -492,11 +492,11 @@ export default function PackagesManagement() {
                       )}
                       {field.type === "radio" && (
                         <div className="space-y-2 pt-1">
-                          <p className="text-xs text-muted-foreground">Each option maps to a specific radio button on the PDF. Enter the radio ID number and the statement the patient will see.</p>
+                          <p className="text-xs text-muted-foreground">Each option maps to a specific radio button on the PDF. Enter just the number (e.g. 1, 2, 7) and the statement the patient will see.</p>
                           {(field.radioOptions || []).map((ro, roIdx) => (
                             <div key={roIdx} className="flex items-center gap-2">
                               <Input
-                                placeholder="Radio ID"
+                                placeholder="e.g. 1"
                                 value={ro.radioId}
                                 onChange={(e) => {
                                   const updated = [...(field.radioOptions || [])];
