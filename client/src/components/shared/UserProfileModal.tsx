@@ -609,7 +609,7 @@ export function UserProfileModal({ user: selectedUser, onClose, canEditLevel = t
                         </span>
                         {app.package?.price && (
                           <span className="font-medium text-foreground">
-                            ${app.package.price}
+                            ${(Number(app.package.price) / 100).toFixed(2)}
                           </span>
                         )}
                       </div>
