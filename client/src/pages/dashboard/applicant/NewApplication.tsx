@@ -89,6 +89,7 @@ export default function NewApplication() {
   const [cardCvv, setCardCvv] = useState("");
   const [paymentProcessing, setPaymentProcessing] = useState(false);
   const [paymentError, setPaymentError] = useState("");
+  const [acceptJsReady, setAcceptJsReady] = useState(false);
 
   const { data: packages, isLoading: packagesLoading } = useQuery<Package[]>({
     queryKey: ["/api/packages"],
@@ -106,12 +107,15 @@ export default function NewApplication() {
   useEffect(() => {
     if (paymentConfig?.acceptJsUrl) {
       const existing = document.querySelector(`script[src="${paymentConfig.acceptJsUrl}"]`);
-      if (!existing) {
-        const script = document.createElement("script");
-        script.src = paymentConfig.acceptJsUrl;
-        script.charset = "utf-8";
-        document.head.appendChild(script);
+      if (existing) {
+        if ((window as any).Accept) setAcceptJsReady(true);
+        return;
       }
+      const script = document.createElement("script");
+      script.src = paymentConfig.acceptJsUrl;
+      script.charset = "utf-8";
+      script.onload = () => setAcceptJsReady(true);
+      document.head.appendChild(script);
     }
   }, [paymentConfig?.acceptJsUrl]);
 
@@ -852,13 +856,18 @@ export default function NewApplication() {
                 <Button
                   type="button"
                   onClick={processPayment}
-                  disabled={paymentProcessing}
+                  disabled={paymentProcessing || !acceptJsReady}
                   data-testid="button-submit-application"
                 >
                   {paymentProcessing ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       Processing Payment...
+                    </>
+                  ) : !acceptJsReady ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Loading Payment...
                     </>
                   ) : (
                     <>
