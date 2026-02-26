@@ -745,6 +745,7 @@ export function UserProfileModal({ user: selectedUser, onClose, canEditLevel = t
                     <Input
                       value={doctorProfileData.fullName || ""}
                       onChange={(e) => setDoctorProfileData({ ...doctorProfileData, fullName: e.target.value })}
+                      onBlur={() => handleSaveDoctorProfile()}
                       placeholder="Dr. Jane Smith, MD"
                       data-testid="input-doctor-fullname"
                     />
@@ -756,6 +757,7 @@ export function UserProfileModal({ user: selectedUser, onClose, canEditLevel = t
                       <Input
                         value={doctorProfileData.licenseNumber || ""}
                         onChange={(e) => setDoctorProfileData({ ...doctorProfileData, licenseNumber: e.target.value })}
+                        onBlur={() => handleSaveDoctorProfile()}
                         placeholder="License #"
                         data-testid="input-doctor-license"
                       />
@@ -765,6 +767,7 @@ export function UserProfileModal({ user: selectedUser, onClose, canEditLevel = t
                       <Input
                         value={doctorProfileData.npiNumber || ""}
                         onChange={(e) => setDoctorProfileData({ ...doctorProfileData, npiNumber: e.target.value })}
+                        onBlur={() => handleSaveDoctorProfile()}
                         placeholder="NPI #"
                         data-testid="input-doctor-npi"
                       />
@@ -777,6 +780,7 @@ export function UserProfileModal({ user: selectedUser, onClose, canEditLevel = t
                       <Input
                         value={doctorProfileData.deaNumber || ""}
                         onChange={(e) => setDoctorProfileData({ ...doctorProfileData, deaNumber: e.target.value })}
+                        onBlur={() => handleSaveDoctorProfile()}
                         placeholder="DEA #"
                         data-testid="input-doctor-dea"
                       />
@@ -786,6 +790,7 @@ export function UserProfileModal({ user: selectedUser, onClose, canEditLevel = t
                       <Input
                         value={doctorProfileData.specialty || ""}
                         onChange={(e) => setDoctorProfileData({ ...doctorProfileData, specialty: e.target.value })}
+                        onBlur={() => handleSaveDoctorProfile()}
                         placeholder="e.g., Family Medicine"
                         data-testid="input-doctor-specialty"
                       />
@@ -798,6 +803,7 @@ export function UserProfileModal({ user: selectedUser, onClose, canEditLevel = t
                       <Input
                         value={doctorProfileData.phone || ""}
                         onChange={(e) => setDoctorProfileData({ ...doctorProfileData, phone: e.target.value })}
+                        onBlur={() => handleSaveDoctorProfile()}
                         placeholder="Office phone"
                         data-testid="input-doctor-phone"
                       />
@@ -807,6 +813,7 @@ export function UserProfileModal({ user: selectedUser, onClose, canEditLevel = t
                       <Input
                         value={doctorProfileData.fax || ""}
                         onChange={(e) => setDoctorProfileData({ ...doctorProfileData, fax: e.target.value })}
+                        onBlur={() => handleSaveDoctorProfile()}
                         placeholder="Fax number"
                         data-testid="input-doctor-fax"
                       />
@@ -818,6 +825,7 @@ export function UserProfileModal({ user: selectedUser, onClose, canEditLevel = t
                     <Input
                       value={doctorProfileData.address || ""}
                       onChange={(e) => setDoctorProfileData({ ...doctorProfileData, address: e.target.value })}
+                      onBlur={() => handleSaveDoctorProfile()}
                       placeholder="Full office address"
                       data-testid="input-doctor-address"
                     />
@@ -828,11 +836,10 @@ export function UserProfileModal({ user: selectedUser, onClose, canEditLevel = t
                     <div className="flex flex-wrap gap-1.5 mb-2">
                       {(doctorProfileData.licensedStates || []).map((s: string) => (
                         <Badge key={s} variant="secondary" className="gap-1 cursor-pointer hover:bg-destructive/20" onClick={() => {
-                          setDoctorProfileData({
-                            ...doctorProfileData,
-                            licensedStates: (doctorProfileData.licensedStates || []).filter((st: string) => st !== s),
-                            state: (doctorProfileData.licensedStates || []).filter((st: string) => st !== s)[0] || "",
-                          });
+                          const newLicensed = (doctorProfileData.licensedStates || []).filter((st: string) => st !== s);
+                          const updatedData = { ...doctorProfileData, licensedStates: newLicensed, state: newLicensed[0] || "" };
+                          setDoctorProfileData(updatedData);
+                          handleSaveDoctorProfile(updatedData);
                         }}>
                           {s} ×
                         </Badge>
@@ -842,12 +849,10 @@ export function UserProfileModal({ user: selectedUser, onClose, canEditLevel = t
                       value=""
                       onValueChange={(val) => {
                         if (val && !(doctorProfileData.licensedStates || []).includes(val)) {
-                          const updated = [...(doctorProfileData.licensedStates || []), val];
-                          setDoctorProfileData({
-                            ...doctorProfileData,
-                            licensedStates: updated,
-                            state: updated[0] || val,
-                          });
+                          const newLicensed = [...(doctorProfileData.licensedStates || []), val];
+                          const updatedData = { ...doctorProfileData, licensedStates: newLicensed, state: newLicensed[0] || val };
+                          setDoctorProfileData(updatedData);
+                          handleSaveDoctorProfile(updatedData);
                         }
                       }}
                     >
@@ -941,7 +946,11 @@ export function UserProfileModal({ user: selectedUser, onClose, canEditLevel = t
                           variant="ghost"
                           size="sm"
                           className="text-destructive hover:text-destructive"
-                          onClick={() => setDoctorProfileData({ ...doctorProfileData, gizmoFormUrl: "" })}
+                          onClick={() => {
+                            const updatedData = { ...doctorProfileData, gizmoFormUrl: "" };
+                            setDoctorProfileData(updatedData);
+                            handleSaveDoctorProfile(updatedData);
+                          }}
                           data-testid="button-remove-unassigned-pdf"
                         >
                           <Trash2 className="h-3 w-3 mr-1" /> Clear
@@ -999,7 +1008,9 @@ export function UserProfileModal({ user: selectedUser, onClose, canEditLevel = t
                           });
                           if (!res.ok) throw new Error((await res.json()).message || "Upload failed");
                           const data = await res.json();
-                          setDoctorProfileData({ ...doctorProfileData, gizmoFormUrl: data.url });
+                          const updatedData = { ...doctorProfileData, gizmoFormUrl: data.url };
+                          setDoctorProfileData(updatedData);
+                          handleSaveDoctorProfile(updatedData);
                           queryClient.invalidateQueries({ queryKey: ["/api/doctor-profiles"] });
                           toast({ title: "PDF Uploaded", description: "Now assign it to a state using the dropdown above." });
                         } catch (err: any) {
