@@ -81,7 +81,7 @@ export default function NewApplication() {
   const preselectedPackage = params.get("package") || "";
 
   const [step, setStep] = useState(1);
-  const totalSteps = 3;
+  const totalSteps = 4;
   const [customFields, setCustomFields] = useState<Record<string, string>>({});
 
   const { data: packages, isLoading: packagesLoading } = useQuery<Package[]>({
@@ -176,19 +176,19 @@ export default function NewApplication() {
       const response = await apiRequest("POST", "/api/applications", {
         packageId: data.packageId,
         formData,
-        autoSendToDoctor: true,
+        paymentStatus: "awaiting_payment",
       });
       return response.json();
     },
-    onSuccess: (application) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/applications"] });
       apiRequest("PUT", "/api/profile/draft-form", { draftFormData: {} }).catch(() => {});
       queryClient.invalidateQueries({ queryKey: ["/api/profile/draft-form"] });
       toast({
-        title: "Order Submitted!",
-        description: "Your handicap permit application has been submitted successfully.",
+        title: "Application Submitted!",
+        description: "Your application has been received. You will be contacted for payment processing.",
       });
-      setLocation(`/dashboard/applicant/applications/${application.id}`);
+      setLocation("/dashboard/applicant");
     },
     onError: (error: any) => {
       toast({
@@ -305,7 +305,7 @@ export default function NewApplication() {
               Apply for Handicap Permit
             </h1>
             <p className="text-muted-foreground">
-              Step {step} of {totalSteps}
+              Step {step} of {totalSteps} — {step === 1 ? "Select Permit" : step === 2 ? "Your Information" : step === 3 ? "Payment" : "Review & Submit"}
             </p>
           </div>
         </div>
@@ -604,6 +604,32 @@ export default function NewApplication() {
             )}
 
             {step === 3 && (
+              <Card data-testid="step-payment">
+                <CardHeader>
+                  <CardTitle>Payment</CardTitle>
+                  <CardDescription>
+                    Review the cost of your selected permit
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="p-6 rounded-lg border bg-muted/30 text-center space-y-3">
+                    <p className="text-sm text-muted-foreground">Selected Permit</p>
+                    <p className="text-xl font-bold" data-testid="text-payment-package">{selectedPackage?.name}</p>
+                    <p className="text-4xl font-bold text-primary" data-testid="text-payment-price">
+                      ${selectedPackage ? (Number(selectedPackage.price) / 100).toFixed(2) : "0.00"}
+                    </p>
+                  </div>
+                  <Alert className="border-blue-500/50 bg-blue-500/10">
+                    <AlertCircle className="h-4 w-4 text-blue-600" />
+                    <AlertDescription className="text-blue-700 dark:text-blue-400">
+                      After submitting your application, our team will contact you to process your payment. Your application will be reviewed once payment is confirmed.
+                    </AlertDescription>
+                  </Alert>
+                </CardContent>
+              </Card>
+            )}
+
+            {step === 4 && (
               <Card data-testid="step-review-submit">
                 <CardHeader>
                   <CardTitle>Review & Submit</CardTitle>

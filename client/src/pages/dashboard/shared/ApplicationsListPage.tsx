@@ -24,7 +24,7 @@ import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import {
   FileText, Search, Clock, CheckCircle, XCircle, Stethoscope, Send,
-  Loader2, Copy, ExternalLink,
+  Loader2, Copy, ExternalLink, DollarSign,
 } from "lucide-react";
 
 function getStatusBadgeVariant(status: string): "default" | "secondary" | "destructive" {
@@ -47,6 +47,34 @@ export default function ApplicationsListPage() {
 
   const { data: applications, isLoading } = useQuery<any[]>({
     queryKey: ["/api/admin/applications"],
+  });
+
+  const [processingPaymentId, setProcessingPaymentId] = useState<string | null>(null);
+
+  const processPaymentMutation = useMutation({
+    mutationFn: async (applicationId: string) => {
+      const res = await apiRequest("POST", `/api/admin/applications/${applicationId}/process-payment`);
+      return res.json();
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "Payment Processed",
+        description: data.message || "Application payment confirmed and sent for review.",
+      });
+      if (data.reviewUrl && data.doctor) {
+        setReviewLinkDialog({ url: data.reviewUrl, doctorName: data.doctor.name || "Doctor" });
+      }
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/applications"] });
+      setProcessingPaymentId(null);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to process payment",
+        variant: "destructive",
+      });
+      setProcessingPaymentId(null);
+    },
   });
 
   const sendToDoctorMutation = useMutation({
@@ -88,6 +116,7 @@ export default function ApplicationsListPage() {
     return true;
   }) || [];
 
+  const awaitingPaymentCount = applications?.filter(a => a.status === "awaiting_payment").length || 0;
   const pendingCount = applications?.filter(a => a.status === "pending" || a.status === "level3_work").length || 0;
   const doctorReviewCount = applications?.filter(a => a.status === "doctor_review").length || 0;
   const approvedCount = applications?.filter(a => a.status === "completed" || a.status === "doctor_approved").length || 0;
@@ -111,7 +140,7 @@ export default function ApplicationsListPage() {
           </div>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-4">
+        <div className="grid gap-4 md:grid-cols-5">
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 gap-2">
               <CardTitle className="text-sm font-medium">Total</CardTitle>
@@ -120,6 +149,16 @@ export default function ApplicationsListPage() {
             <CardContent>
               <div className="text-2xl font-bold">{applications?.length || 0}</div>
               <p className="text-xs text-muted-foreground">All orders</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 gap-2">
+              <CardTitle className="text-sm font-medium">Awaiting Payment</CardTitle>
+              <DollarSign className="h-4 w-4 text-orange-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{awaitingPaymentCount}</div>
+              <p className="text-xs text-muted-foreground">Need payment</p>
             </CardContent>
           </Card>
           <Card>
@@ -178,6 +217,7 @@ export default function ApplicationsListPage() {
                 <SelectContent>
                   <SelectItem value="all">All Status</SelectItem>
                   <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="awaiting_payment">Awaiting Payment</SelectItem>
                   <SelectItem value="doctor_review">With Doctor</SelectItem>
                   <SelectItem value="doctor_approved">Approved</SelectItem>
                   <SelectItem value="doctor_denied">Denied</SelectItem>

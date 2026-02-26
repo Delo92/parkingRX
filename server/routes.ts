@@ -987,14 +987,17 @@ export async function registerRoutes(
 
       const workflowSteps = (pkg.workflowSteps as string[]) || defaultConfig.workflowSteps;
 
+      const incomingPaymentStatus = req.body.paymentStatus || "unpaid";
+      const applicationStatus = incomingPaymentStatus === "awaiting_payment" ? "awaiting_payment" : "pending";
+
       const application = await storage.createApplication({
         userId: req.user!.id,
         packageId,
         currentStep: 1,
         totalSteps: workflowSteps.length,
-        status: "pending",
+        status: applicationStatus,
         formData: formData || {},
-        paymentStatus: req.body.paymentStatus || "unpaid",
+        paymentStatus: incomingPaymentStatus,
         paymentAmount: pkg.price,
       });
 
