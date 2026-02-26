@@ -1236,8 +1236,9 @@ export async function registerRoutes(
       };
 
       const selectedRadioIds: string[] = [];
-      if (pkg?.requiredFields && Array.isArray(pkg.requiredFields)) {
-        for (const field of pkg.requiredFields as any[]) {
+      const pkgFormFields = (pkg as any)?.formFields || (pkg as any)?.requiredFields || [];
+      if (Array.isArray(pkgFormFields)) {
+        for (const field of pkgFormFields as any[]) {
           if (field.radioOptions && Array.isArray(field.radioOptions)) {
             const val = formData[field.name];
             if (val) {
