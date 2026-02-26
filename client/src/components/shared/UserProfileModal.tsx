@@ -822,13 +822,13 @@ export function UserProfileModal({ user: selectedUser, onClose, canEditLevel = t
                 </div>
 
                 {doctorProfileData.gizmoFormUrl && (
-                  <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-md">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2 text-sm text-green-700 dark:text-green-300">
-                        <CheckCircle className="h-4 w-4" />
+                  <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-md overflow-hidden">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 text-sm text-green-700 dark:text-green-300 min-w-0">
+                        <CheckCircle className="h-4 w-4 flex-shrink-0" />
                         <span className="font-medium">PDF form uploaded</span>
                       </div>
-                      <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1 flex-shrink-0">
                         <Button
                           type="button"
                           variant="ghost"
@@ -850,7 +850,7 @@ export function UserProfileModal({ user: selectedUser, onClose, canEditLevel = t
                         </Button>
                       </div>
                     </div>
-                    <p className="text-xs text-muted-foreground mt-1 truncate">{doctorProfileData.gizmoFormUrl}</p>
+                    <p className="text-xs text-muted-foreground mt-1 truncate max-w-full break-all">{doctorProfileData.gizmoFormUrl.split("/").pop()}</p>
                   </div>
                 )}
 
