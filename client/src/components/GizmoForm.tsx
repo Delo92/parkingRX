@@ -438,6 +438,126 @@ export function GizmoForm({ data, onClose }: GizmoFormProps) {
           }
         }
       }
+
+      const radioItemRegex = /^[{\s]*radio\s*$/i;
+      const idItemRegex = /^[_\s]*id[_\s]*(\d+)/i;
+      const combinedRadioRegex = /\{?\s*radio\s*_?\s*id\s*_?\s*(\d+)\s*\}?/i;
+      const seenRadioOptions = new Set(radios.filter(r => r.pageIndex === pageNum - 1).map(r => r.option));
+
+      for (const item of items) {
+        const trimmed = item.str.trim();
+        const combined = combinedRadioRegex.exec(trimmed);
+        if (combined) {
+          const option = combined[1];
+          if (seenRadioOptions.has(option)) continue;
+          seenRadioOptions.add(option);
+
+          const x = item.transform[4] + offsets.x;
+          const y = viewport.height - item.transform[5] + offsets.y;
+          const fontSize = item.height || 12;
+
+          let selected = false;
+          const autoFill = RADIO_AUTO_FILL["id"];
+          if (autoFill) {
+            const patientVal = data.patientData[autoFill.sourceField] || "";
+            const expectedOption = autoFill.valueMap[patientVal];
+            if (expectedOption === option) {
+              selected = true;
+            }
+          }
+
+          radios.push({
+            token: `{radio_id_${option}}`,
+            group: "id",
+            option,
+            x,
+            y,
+            pageIndex: pageNum - 1,
+            selected,
+            fontSize,
+          });
+          continue;
+        }
+
+        const idMatch = idItemRegex.exec(trimmed);
+        if (idMatch) {
+          const option = idMatch[1];
+          if (seenRadioOptions.has(option)) continue;
+          seenRadioOptions.add(option);
+
+          const x = item.transform[4] + offsets.x;
+          const y = viewport.height - item.transform[5] + offsets.y;
+          const fontSize = item.height || 12;
+
+          let selected = false;
+          const autoFill = RADIO_AUTO_FILL["id"];
+          if (autoFill) {
+            const patientVal = data.patientData[autoFill.sourceField] || "";
+            const expectedOption = autoFill.valueMap[patientVal];
+            if (expectedOption === option) {
+              selected = true;
+            }
+          }
+
+          radios.push({
+            token: `{radio_id_${option}}`,
+            group: "id",
+            option,
+            x,
+            y,
+            pageIndex: pageNum - 1,
+            selected,
+            fontSize,
+          });
+        }
+      }
+
+      const radioOnlyRegex = /^\{?\s*radio\s*$/i;
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (!radioOnlyRegex.test(item.str.trim())) continue;
+
+        for (let j = 0; j < items.length; j++) {
+          if (j === i) continue;
+          const other = items[j];
+          const dx = Math.abs(other.transform[4] - item.transform[4]);
+          const dy = Math.abs(other.transform[5] - item.transform[5]);
+          if (dx > 60 || dy > 20) continue;
+
+          const otherMatch = idItemRegex.exec(other.str.trim());
+          if (!otherMatch) continue;
+
+          const option = otherMatch[1];
+          if (seenRadioOptions.has(option)) continue;
+          seenRadioOptions.add(option);
+
+          const anchorItem = other.transform[5] <= item.transform[5] ? other : item;
+          const x = Math.min(item.transform[4], other.transform[4]) + offsets.x;
+          const y = viewport.height - anchorItem.transform[5] + offsets.y;
+          const fontSize = anchorItem.height || 12;
+
+          let selected = false;
+          const autoFill = RADIO_AUTO_FILL["id"];
+          if (autoFill) {
+            const patientVal = data.patientData[autoFill.sourceField] || "";
+            const expectedOption = autoFill.valueMap[patientVal];
+            if (expectedOption === option) {
+              selected = true;
+            }
+          }
+
+          radios.push({
+            token: `{radio_id_${option}}`,
+            group: "id",
+            option,
+            x,
+            y,
+            pageIndex: pageNum - 1,
+            selected,
+            fontSize,
+          });
+        }
+      }
     }
 
     setPlaceholderFields(fields);
