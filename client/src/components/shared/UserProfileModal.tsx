@@ -48,7 +48,10 @@ import {
   PhoneCall,
   Edit3,
   Stethoscope,
-  Info
+  Info,
+  Upload,
+  Trash2,
+  ExternalLink
 } from "lucide-react";
 
 type ApplicationWithPackage = Application & {
@@ -95,7 +98,7 @@ const PLACEHOLDERS_REFERENCE = [
 ];
 
 export function UserProfileModal({ user: selectedUser, onClose, canEditLevel = true }: UserProfileModalProps) {
-  const { user: currentUser } = useAuth();
+  const { user: currentUser, getIdToken } = useAuth();
   const { getLevelName } = useConfig();
   const { toast } = useToast();
   const [isEditing, setIsEditing] = useState(false);
@@ -105,6 +108,7 @@ export function UserProfileModal({ user: selectedUser, onClose, canEditLevel = t
   const [newNote, setNewNote] = useState("");
   const [showPlaceholders, setShowPlaceholders] = useState(false);
   const [doctorProfileData, setDoctorProfileData] = useState<Record<string, any>>({});
+  const [pdfUploading, setPdfUploading] = useState(false);
 
   const isUserDoctor = selectedUser?.userLevel === 2;
 
@@ -170,6 +174,7 @@ export function UserProfileModal({ user: selectedUser, onClose, canEditLevel = t
         address: doctorProfile.address || "",
         state: doctorProfile.state || "",
         formTemplate: doctorProfile.formTemplate || "",
+        gizmoFormUrl: doctorProfile.gizmoFormUrl || "",
       });
     } else if (selectedUser && isUserDoctor) {
       setDoctorProfileData({
@@ -183,6 +188,7 @@ export function UserProfileModal({ user: selectedUser, onClose, canEditLevel = t
         address: "",
         state: "",
         formTemplate: "",
+        gizmoFormUrl: "",
       });
     }
   }, [doctorProfile, selectedUser, isUserDoctor]);
@@ -354,7 +360,9 @@ export function UserProfileModal({ user: selectedUser, onClose, canEditLevel = t
         <Tabs defaultValue="profile" className="w-full">
           <TabsList className="w-full">
             <TabsTrigger value="profile" className="flex-1" data-testid="tab-profile">Profile</TabsTrigger>
-            <TabsTrigger value="purchases" className="flex-1" data-testid="tab-purchases">Purchases</TabsTrigger>
+            {!isUserDoctor && (
+              <TabsTrigger value="purchases" className="flex-1" data-testid="tab-purchases">Purchases</TabsTrigger>
+            )}
             <TabsTrigger value="notes" className="flex-1" data-testid="tab-notes">Notes</TabsTrigger>
             {isUserDoctor && (
               <TabsTrigger value="doctor" className="flex-1" data-testid="tab-doctor">
@@ -801,51 +809,109 @@ export function UserProfileModal({ user: selectedUser, onClose, canEditLevel = t
 
                 <h4 className="text-sm font-semibold text-muted-foreground flex items-center gap-1.5">
                   <FileText className="h-4 w-4" />
-                  Form Template
+                  PDF Auto-Fill Form
                 </h4>
 
                 <div className="p-3 bg-muted/50 border rounded-md text-sm text-muted-foreground flex items-start gap-2">
                   <Info className="h-4 w-4 mt-0.5 flex-shrink-0" />
                   <span>
-                    Use placeholder tags like <code className="bg-muted px-1 rounded font-mono text-xs">{"{{patientName}}"}</code> in your HTML template. They will be replaced with real data when a document is generated upon approval.
+                    Upload a PDF form that will be auto-filled with patient and doctor data when an application is approved. The form fields will be matched automatically.
                   </span>
                 </div>
 
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowPlaceholders(!showPlaceholders)}
-                  data-testid="button-toggle-placeholders"
-                >
-                  {showPlaceholders ? "Hide" : "Show"} Available Placeholders
-                </Button>
-
-                {showPlaceholders && (
-                  <div className="border rounded-md p-3 bg-muted/30">
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-                      {PLACEHOLDERS_REFERENCE.map((p) => (
-                        <div key={p.tag} className="flex items-center justify-between py-0.5">
-                          <code className="font-mono bg-muted px-1 rounded">{p.tag}</code>
-                          <span className="text-muted-foreground ml-2">{p.desc}</span>
-                        </div>
-                      ))}
+                {doctorProfileData.gizmoFormUrl && (
+                  <div className="p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-md">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2 text-sm text-green-700 dark:text-green-300">
+                        <CheckCircle className="h-4 w-4" />
+                        <span className="font-medium">PDF form uploaded</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => window.open(doctorProfileData.gizmoFormUrl, "_blank")}
+                          data-testid="button-view-pdf-form"
+                        >
+                          <ExternalLink className="h-3 w-3 mr-1" /> View
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          className="text-destructive hover:text-destructive"
+                          onClick={() => setDoctorProfileData({ ...doctorProfileData, gizmoFormUrl: "" })}
+                          data-testid="button-remove-pdf-form"
+                        >
+                          <Trash2 className="h-3 w-3 mr-1" /> Remove
+                        </Button>
+                      </div>
                     </div>
+                    <p className="text-xs text-muted-foreground mt-1 truncate">{doctorProfileData.gizmoFormUrl}</p>
                   </div>
                 )}
 
                 <div className="space-y-1.5">
-                  <Label>HTML Form Template</Label>
-                  <Textarea
-                    value={doctorProfileData.formTemplate || ""}
-                    onChange={(e) => setDoctorProfileData({ ...doctorProfileData, formTemplate: e.target.value })}
-                    placeholder={"<html>\n<body>\n  <h1>Medical Document</h1>\n  <p>Patient: {{patientName}}</p>\n  <p>Doctor: {{doctorName}}</p>\n</body>\n</html>"}
-                    className="min-h-[200px] font-mono text-xs"
-                    data-testid="input-doctor-form-template"
-                  />
-                  <p className="text-xs text-muted-foreground">
-                    This HTML template will be used to generate documents when the doctor approves an application.
-                  </p>
+                  <Label>{doctorProfileData.gizmoFormUrl ? "Replace PDF Form" : "Upload PDF Form"}</Label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="file"
+                      accept=".pdf"
+                      className="hidden"
+                      id="pdf-form-upload"
+                      data-testid="input-pdf-form-upload"
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        if (!doctorProfile?.id) {
+                          toast({ title: "Save doctor profile first", description: "Please save the doctor profile before uploading a PDF form.", variant: "destructive" });
+                          return;
+                        }
+                        setPdfUploading(true);
+                        try {
+                          const formData = new FormData();
+                          formData.append("file", file);
+                          const token = await getIdToken();
+                          const res = await fetch(`/api/admin/doctor-templates/${doctorProfile.id}/gizmo-form`, {
+                            method: "POST",
+                            headers: token ? { Authorization: `Bearer ${token}` } : {},
+                            body: formData,
+                          });
+                          if (!res.ok) throw new Error((await res.json()).message || "Upload failed");
+                          const data = await res.json();
+                          setDoctorProfileData({ ...doctorProfileData, gizmoFormUrl: data.url });
+                          queryClient.invalidateQueries({ queryKey: ["/api/doctor-profiles"] });
+                          toast({ title: "PDF Form Uploaded", description: "The auto-fill form has been saved for this doctor." });
+                        } catch (err: any) {
+                          toast({ title: "Upload Failed", description: err.message, variant: "destructive" });
+                        } finally {
+                          setPdfUploading(false);
+                          e.target.value = "";
+                        }
+                      }}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full"
+                      disabled={pdfUploading || !doctorProfile?.id}
+                      onClick={() => document.getElementById("pdf-form-upload")?.click()}
+                      data-testid="button-upload-pdf-form"
+                    >
+                      {pdfUploading ? (
+                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      ) : (
+                        <Upload className="h-4 w-4 mr-2" />
+                      )}
+                      {pdfUploading ? "Uploading..." : "Choose PDF File"}
+                    </Button>
+                  </div>
+                  {!doctorProfile?.id && (
+                    <p className="text-xs text-amber-600 dark:text-amber-400">
+                      Save the doctor profile first, then you can upload a PDF form.
+                    </p>
+                  )}
                 </div>
 
                 <Button

@@ -25,7 +25,7 @@ import DoctorDashboard from "@/pages/dashboard/DoctorDashboard";
 import AdminDashboard from "@/pages/dashboard/AdminDashboard";
 import UsersManagement from "@/pages/dashboard/admin/UsersManagement";
 import PackagesManagement from "@/pages/dashboard/admin/PackagesManagement";
-import DoctorsManagement from "@/pages/dashboard/admin/DoctorsManagement";
+
 import OwnerDashboard from "@/pages/dashboard/OwnerDashboard";
 import SiteSettings from "@/pages/dashboard/owner/SiteSettings";
 import RegistrationPage from "@/pages/dashboard/applicant/RegistrationPage";
@@ -179,11 +179,7 @@ function App() {
                       <PackagesManagement />
                     </ProtectedRoute>
                   </Route>
-                  <Route path="/dashboard/admin/doctors">
-                    <ProtectedRoute minLevel={3}>
-                      <DoctorsManagement />
-                    </ProtectedRoute>
-                  </Route>
+
                   <Route path="/dashboard/admin/applications">
                     <ProtectedRoute minLevel={3}>
                       <SharedApplicationsListPage />
@@ -231,11 +227,7 @@ function App() {
                       <PackagesManagement />
                     </ProtectedRoute>
                   </Route>
-                  <Route path="/dashboard/owner/doctors">
-                    <ProtectedRoute minLevel={4}>
-                      <DoctorsManagement />
-                    </ProtectedRoute>
-                  </Route>
+
                   <Route path="/dashboard/owner/applications">
                     <ProtectedRoute minLevel={4}>
                       <SharedApplicationsListPage />

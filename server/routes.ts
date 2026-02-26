@@ -2552,6 +2552,55 @@ export async function registerRoutes(
     });
   });
 
+  app.post("/api/admin/doctor-templates/:doctorProfileId/gizmo-form", requireAuth, requireLevel(3), (req, res, next) => {
+    documentUpload.single("file")(req, res, async (err) => {
+      if (err instanceof multer.MulterError) {
+        if (err.code === "LIMIT_FILE_SIZE") {
+          res.status(400).json({ message: "File size must be under 20MB" });
+          return;
+        }
+        res.status(400).json({ message: err.message });
+        return;
+      }
+      if (err) {
+        res.status(400).json({ message: err.message });
+        return;
+      }
+      if (!req.file) {
+        res.status(400).json({ message: "No file uploaded" });
+        return;
+      }
+
+      try {
+        const doctorProfileId = req.params.doctorProfileId as string;
+        const profile = await storage.getDoctorProfile(doctorProfileId);
+        if (!profile) {
+          res.status(404).json({ message: "Doctor profile not found" });
+          return;
+        }
+
+        const bucket = firebaseStorage.bucket();
+        const uniqueSuffix = Date.now() + "-" + randomBytes(4).toString("hex");
+        const fileName = `doctor-gizmo-forms/${doctorProfileId}/${uniqueSuffix}.pdf`;
+        const file = bucket.file(fileName);
+
+        await file.save(req.file.buffer, {
+          metadata: { contentType: "application/pdf" },
+        });
+
+        await file.makePublic();
+        const url = `https://storage.googleapis.com/${bucket.name}/${fileName}`;
+
+        await storage.updateDoctorProfile(doctorProfileId, { gizmoFormUrl: url });
+
+        res.json({ url });
+      } catch (error: any) {
+        console.error("Gizmo form upload error:", error);
+        res.status(500).json({ message: "Failed to upload PDF form" });
+      }
+    });
+  });
+
   app.get("/api/admin/doctor-templates/:doctorProfileId", requireAuth, requireLevel(3), async (req, res) => {
     try {
       const profile = await storage.getDoctorProfile(req.params.doctorProfileId as string);
