@@ -174,9 +174,6 @@ export function UserProfileModal({ user: selectedUser, onClose, canEditLevel = t
 
   useEffect(() => {
     if (doctorProfile) {
-      console.log("[DEBUG] Loading doctorProfile - stateForms:", JSON.stringify(doctorProfile.stateForms));
-      console.log("[DEBUG] Loading doctorProfile - gizmoFormUrl:", doctorProfile.gizmoFormUrl);
-      console.log("[DEBUG] Loading doctorProfile - full keys:", Object.keys(doctorProfile));
       setDoctorProfileData({
         fullName: doctorProfile.fullName || "",
         licenseNumber: doctorProfile.licenseNumber || "",
@@ -318,14 +315,11 @@ export function UserProfileModal({ user: selectedUser, onClose, canEditLevel = t
     }
   };
 
-  const handleSaveDoctorProfile = () => {
+  const handleSaveDoctorProfile = (overrideData?: Record<string, any>) => {
     if (!selectedUser) return;
-    console.log("[DEBUG] handleSaveDoctorProfile - stateForms:", JSON.stringify(doctorProfileData.stateForms));
-    console.log("[DEBUG] handleSaveDoctorProfile - profileId:", doctorProfile?.id);
-    console.log("[DEBUG] handleSaveDoctorProfile - full data keys:", Object.keys(doctorProfileData));
     saveDoctorProfile.mutate({
       profileId: doctorProfile?.id,
-      data: doctorProfileData,
+      data: overrideData || doctorProfileData,
       userId: selectedUser.id,
     });
   };
@@ -916,9 +910,11 @@ export function UserProfileModal({ user: selectedUser, onClose, canEditLevel = t
                               size="sm"
                               className="text-destructive hover:text-destructive"
                               onClick={() => {
-                                const updated = { ...(doctorProfileData.stateForms || {}) };
-                                delete updated[st];
-                                setDoctorProfileData({ ...doctorProfileData, stateForms: updated });
+                                const updatedStateForms = { ...(doctorProfileData.stateForms || {}) };
+                                delete updatedStateForms[st];
+                                const updatedData = { ...doctorProfileData, stateForms: updatedStateForms };
+                                setDoctorProfileData(updatedData);
+                                handleSaveDoctorProfile(updatedData);
                               }}
                               data-testid={`button-remove-pdf-${st}`}
                             >
@@ -955,10 +951,12 @@ export function UserProfileModal({ user: selectedUser, onClose, canEditLevel = t
                     <p className="text-xs text-muted-foreground mt-1 truncate max-w-full break-all">{doctorProfileData.gizmoFormUrl.split("/").pop()}</p>
                     <div className="flex items-center gap-2 mt-2">
                       <Select value={selectedPdfState} onValueChange={(val) => {
-                        const updated = { ...(doctorProfileData.stateForms || {}), [val]: doctorProfileData.gizmoFormUrl };
-                        setDoctorProfileData({ ...doctorProfileData, stateForms: updated });
+                        const updatedStateForms = { ...(doctorProfileData.stateForms || {}), [val]: doctorProfileData.gizmoFormUrl };
+                        const updatedData = { ...doctorProfileData, stateForms: updatedStateForms };
+                        setDoctorProfileData(updatedData);
                         setSelectedPdfState("");
-                        toast({ title: "State Assigned", description: `PDF form assigned to ${val}. Upload another PDF or assign this one to more states.` });
+                        handleSaveDoctorProfile(updatedData);
+                        toast({ title: "State Assigned & Saved", description: `PDF form assigned to ${val} and saved.` });
                       }}>
                         <SelectTrigger className="flex-1" data-testid="select-assign-state">
                           <SelectValue placeholder="Assign to state..." />
