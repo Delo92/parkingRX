@@ -182,6 +182,7 @@ export function UserProfileModal({ user: selectedUser, onClose, canEditLevel = t
         fax: doctorProfile.fax || "",
         address: doctorProfile.address || "",
         state: doctorProfile.state || "",
+        licensedStates: doctorProfile.licensedStates || [],
         formTemplate: doctorProfile.formTemplate || "",
         gizmoFormUrl: doctorProfile.gizmoFormUrl || "",
       });
@@ -196,6 +197,7 @@ export function UserProfileModal({ user: selectedUser, onClose, canEditLevel = t
         fax: "",
         address: "",
         state: "",
+        licensedStates: [],
         formTemplate: "",
         gizmoFormUrl: "",
       });
@@ -818,13 +820,47 @@ export function UserProfileModal({ user: selectedUser, onClose, canEditLevel = t
                   </div>
 
                   <div className="space-y-1.5">
-                    <Label>State</Label>
-                    <Input
-                      value={doctorProfileData.state || ""}
-                      onChange={(e) => setDoctorProfileData({ ...doctorProfileData, state: e.target.value })}
-                      placeholder="e.g., Oklahoma"
-                      data-testid="input-doctor-state"
-                    />
+                    <Label>Licensed States</Label>
+                    <div className="flex flex-wrap gap-1.5 mb-2">
+                      {(doctorProfileData.licensedStates || []).map((s: string) => (
+                        <Badge key={s} variant="secondary" className="gap-1 cursor-pointer hover:bg-destructive/20" onClick={() => {
+                          setDoctorProfileData({
+                            ...doctorProfileData,
+                            licensedStates: (doctorProfileData.licensedStates || []).filter((st: string) => st !== s),
+                            state: (doctorProfileData.licensedStates || []).filter((st: string) => st !== s)[0] || "",
+                          });
+                        }}>
+                          {s} ×
+                        </Badge>
+                      ))}
+                    </div>
+                    <Select
+                      value=""
+                      onValueChange={(val) => {
+                        if (val && !(doctorProfileData.licensedStates || []).includes(val)) {
+                          const updated = [...(doctorProfileData.licensedStates || []), val];
+                          setDoctorProfileData({
+                            ...doctorProfileData,
+                            licensedStates: updated,
+                            state: updated[0] || val,
+                          });
+                        }
+                      }}
+                    >
+                      <SelectTrigger data-testid="select-doctor-licensed-states">
+                        <SelectValue placeholder="Add a state..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {["Alabama","Alaska","Arizona","Arkansas","California","Colorado","Connecticut","Delaware","Florida","Georgia","Hawaii","Idaho","Illinois","Indiana","Iowa","Kansas","Kentucky","Louisiana","Maine","Maryland","Massachusetts","Michigan","Minnesota","Mississippi","Missouri","Montana","Nebraska","Nevada","New Hampshire","New Jersey","New Mexico","New York","North Carolina","North Dakota","Ohio","Oklahoma","Oregon","Pennsylvania","Rhode Island","South Carolina","South Dakota","Tennessee","Texas","Utah","Vermont","Virginia","Washington","West Virginia","Wisconsin","Wyoming"].map((st) => (
+                          <SelectItem key={st} value={st} disabled={(doctorProfileData.licensedStates || []).includes(st)}>
+                            {st} {(doctorProfileData.licensedStates || []).includes(st) ? "✓" : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      Patients from these states will be assigned to this doctor. Click a state badge to remove it.
+                    </p>
                   </div>
                 </div>
 

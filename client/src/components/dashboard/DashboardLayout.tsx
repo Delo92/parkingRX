@@ -34,6 +34,7 @@ import {
   Bell,
   HelpCircle,
   Stethoscope,
+  MapPin,
 } from "lucide-react";
 
 interface NavItem {
@@ -85,6 +86,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           { title: "Users", href: "/dashboard/admin/users", icon: Users },
 
           { title: "Registration Types", href: "/dashboard/admin/packages", icon: Building2 },
+          { title: "State Forms", href: "/dashboard/admin/state-forms", icon: MapPin },
           { title: "Payments", href: "/dashboard/admin/payments", icon: CreditCard },
           { title: "Analytics", href: "/dashboard/admin/analytics", icon: BarChart3 },
           { title: "Messages", href: "/dashboard/admin/messages", icon: MessageSquare },
@@ -97,6 +99,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
           { title: "Orders", href: "/dashboard/owner/applications", icon: FileText },
           { title: "Registration Types", href: "/dashboard/owner/packages", icon: Building2 },
+          { title: "State Forms", href: "/dashboard/owner/state-forms", icon: MapPin },
           { title: "Payments", href: "/dashboard/owner/payments", icon: CreditCard },
           { title: "Commissions", href: "/dashboard/owner/commissions", icon: DollarSign },
           { title: "Analytics", href: "/dashboard/owner/analytics", icon: BarChart3 },

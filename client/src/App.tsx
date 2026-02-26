@@ -25,6 +25,7 @@ import DoctorDashboard from "@/pages/dashboard/DoctorDashboard";
 import AdminDashboard from "@/pages/dashboard/AdminDashboard";
 import UsersManagement from "@/pages/dashboard/admin/UsersManagement";
 import PackagesManagement from "@/pages/dashboard/admin/PackagesManagement";
+import StateFormsManagement from "@/pages/dashboard/admin/StateFormsManagement";
 
 import OwnerDashboard from "@/pages/dashboard/OwnerDashboard";
 import SiteSettings from "@/pages/dashboard/owner/SiteSettings";
@@ -179,6 +180,11 @@ function App() {
                       <PackagesManagement />
                     </ProtectedRoute>
                   </Route>
+                  <Route path="/dashboard/admin/state-forms">
+                    <ProtectedRoute minLevel={3}>
+                      <StateFormsManagement />
+                    </ProtectedRoute>
+                  </Route>
 
                   <Route path="/dashboard/admin/applications">
                     <ProtectedRoute minLevel={3}>
@@ -225,6 +231,11 @@ function App() {
                   <Route path="/dashboard/owner/packages">
                     <ProtectedRoute minLevel={4}>
                       <PackagesManagement />
+                    </ProtectedRoute>
+                  </Route>
+                  <Route path="/dashboard/owner/state-forms">
+                    <ProtectedRoute minLevel={4}>
+                      <StateFormsManagement />
                     </ProtectedRoute>
                   </Route>
 

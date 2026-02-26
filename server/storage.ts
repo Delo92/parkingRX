@@ -211,6 +211,10 @@ export interface IStorage {
   createDoctorProfile(data: Record<string, any>): Promise<Record<string, any>>;
   updateDoctorProfile(id: string, data: Record<string, any>): Promise<Record<string, any> | undefined>;
 
+  getStateFormTemplates(): Promise<Record<string, any>[]>;
+  getStateFormTemplate(stateCode: string): Promise<Record<string, any> | undefined>;
+  upsertStateFormTemplate(stateCode: string, data: Record<string, any>): Promise<Record<string, any>>;
+
   getAutoMessageTriggers(packageId: string): Promise<Record<string, any>[]>;
   createAutoMessageTrigger(data: Record<string, any>): Promise<Record<string, any>>;
   updateAutoMessageTrigger(id: string, data: Record<string, any>): Promise<Record<string, any> | undefined>;
@@ -692,15 +696,32 @@ export class FirestoreStorage implements IStorage {
     return docToRecord(updated) as DoctorReviewToken;
   }
 
-  async getNextDoctorForAssignment(): Promise<Record<string, any> | undefined> {
-    const doctors = await this.getActiveDoctors();
-    if (doctors.length === 0) return undefined;
+  async getNextDoctorForAssignment(patientState?: string): Promise<Record<string, any> | undefined> {
+    const allDoctors = await this.getActiveDoctors();
+    if (allDoctors.length === 0) return undefined;
+
+    let doctors = allDoctors;
+    if (patientState) {
+      const normalizedState = patientState.trim().toLowerCase();
+      doctors = allDoctors.filter(d => {
+        const licensedStates: string[] = d.licensedStates || [];
+        if (licensedStates.length > 0) {
+          return licensedStates.some((s: string) => s.trim().toLowerCase() === normalizedState);
+        }
+        const docState = (d.state || "").trim().toLowerCase();
+        return docState === normalizedState;
+      });
+      if (doctors.length === 0) {
+        doctors = allDoctors;
+      }
+    }
 
     const settings = await this.getAdminSettings();
-    const lastAssignedDoctorId = settings?.lastAssignedDoctorId || null;
+    const stateKey = patientState ? `lastAssignedDoctorId_${patientState.trim().toLowerCase()}` : "lastAssignedDoctorId";
+    const lastAssignedDoctorId = settings?.[stateKey] || null;
 
     if (!lastAssignedDoctorId) {
-      await this.updateAdminSettings({ lastAssignedDoctorId: doctors[0].userId });
+      await this.updateAdminSettings({ [stateKey]: doctors[0].userId });
       return doctors[0];
     }
 
@@ -708,7 +729,7 @@ export class FirestoreStorage implements IStorage {
     const nextIndex = (lastIndex + 1) % doctors.length;
     const nextDoctor = doctors[nextIndex];
 
-    await this.updateAdminSettings({ lastAssignedDoctorId: nextDoctor.userId });
+    await this.updateAdminSettings({ [stateKey]: nextDoctor.userId });
     return nextDoctor;
   }
 
@@ -1608,6 +1629,31 @@ export class FirestoreStorage implements IStorage {
   async deleteAutoMessageTrigger(id: string): Promise<boolean> {
     await this.col("autoMessageTriggers").doc(id).delete();
     return true;
+  }
+
+  async getStateFormTemplates(): Promise<Record<string, any>[]> {
+    const snap = await this.col("stateFormTemplates").get();
+    return docsToRecords(snap);
+  }
+
+  async getStateFormTemplate(stateCode: string): Promise<Record<string, any> | undefined> {
+    const normalized = stateCode.trim().toLowerCase();
+    const doc = await this.col("stateFormTemplates").doc(normalized).get();
+    return docToRecord(doc);
+  }
+
+  async upsertStateFormTemplate(stateCode: string, data: Record<string, any>): Promise<Record<string, any>> {
+    const normalized = stateCode.trim().toLowerCase();
+    const ref = this.col("stateFormTemplates").doc(normalized);
+    const existing = await ref.get();
+    const cleanData = cleanForFirestore({ ...data, stateCode: normalized, updatedAt: FieldValue.serverTimestamp() });
+    if (existing.exists) {
+      await ref.update(cleanData);
+    } else {
+      await ref.set({ ...cleanData, createdAt: FieldValue.serverTimestamp() });
+    }
+    const updated = await ref.get();
+    return docToRecord(updated)!;
   }
 }
 
