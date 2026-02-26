@@ -113,6 +113,15 @@ const PLACEHOLDER_MAP: Record<string, { source: "patient" | "doctor" | "meta"; k
   "{doctorNpiNumber}": { source: "doctor", key: "npiNumber" },
 };
 
+function getRadioGroup(option: string): string {
+  const num = parseInt(option, 10);
+  if (num >= 1 && num <= 3) return "placardtype";
+  if (num >= 4 && num <= 5) return "placardcount";
+  if (num >= 7 && num <= 14) return "condition";
+  if (num >= 15 && num <= 16) return "duration";
+  return "other";
+}
+
 const RADIO_AUTO_FILL: Record<string, { sourceField: string; valueMap: Record<string, string> }> = {
   idtype: {
     sourceField: "idType",
@@ -123,7 +132,7 @@ const RADIO_AUTO_FILL: Record<string, { sourceField: string; valueMap: Record<st
       tribal_id_card: "tribal",
     },
   },
-  id: {
+  condition: {
     sourceField: "disabilityCondition",
     valueMap: {
       A: "7",
@@ -134,13 +143,6 @@ const RADIO_AUTO_FILL: Record<string, { sourceField: string; valueMap: Record<st
       F: "12",
       G: "13",
       H: "14",
-      new: "1",
-      renewal: "2",
-      replacement: "3",
-      "1placard": "4",
-      "2placards": "5",
-      temporary: "15",
-      fiveyear: "16",
     },
   },
 };
@@ -396,8 +398,9 @@ export function GizmoForm({ data, onClose }: GizmoFormProps) {
         const radioRegex = /\{radio_([a-zA-Z0-9]+)_([a-zA-Z0-9]+)\}/g;
         let radioMatch;
         while ((radioMatch = radioRegex.exec(fullText)) !== null) {
-          const group = radioMatch[1].toLowerCase();
+          const rawGroup = radioMatch[1].toLowerCase();
           const option = radioMatch[2].toLowerCase();
+          const group = rawGroup === "id" ? getRadioGroup(option) : rawGroup;
 
           let charPos = 0;
           let anchorItem: TextItem | null = null;
@@ -440,75 +443,52 @@ export function GizmoForm({ data, onClose }: GizmoFormProps) {
       }
 
       const radioItemRegex = /^[{\s]*radio\s*$/i;
-      const idItemRegex = /^[_\s]*id[_\s]*(\d+)/i;
-      const combinedRadioRegex = /\{?\s*radio\s*_?\s*id\s*_?\s*(\d+)\s*\}?/i;
+      const idItemRegex = /^[_\s]*id[_\s]*(\d{1,2})\s*\}?\s*$/i;
+      const combinedRadioRegex = /\{?\s*radio\s*_?\s*id\s*_?\s*(\d{1,2})\s*\}?/i;
       const seenRadioOptions = new Set(radios.filter(r => r.pageIndex === pageNum - 1).map(r => r.option));
+
+      const addRadioFromItem = (option: string, itemX: number, itemY: number, itemHeight: number) => {
+        if (seenRadioOptions.has(option)) return;
+        seenRadioOptions.add(option);
+
+        const group = getRadioGroup(option);
+        const x = itemX + offsets.x;
+        const y = viewport.height - itemY + offsets.y;
+        const fontSize = itemHeight || 12;
+
+        let selected = false;
+        const autoFill = RADIO_AUTO_FILL[group];
+        if (autoFill) {
+          const patientVal = data.patientData[autoFill.sourceField] || "";
+          const expectedOption = autoFill.valueMap[patientVal];
+          if (expectedOption === option) {
+            selected = true;
+          }
+        }
+
+        radios.push({
+          token: `{radio_id_${option}}`,
+          group,
+          option,
+          x,
+          y,
+          pageIndex: pageNum - 1,
+          selected,
+          fontSize,
+        });
+      };
 
       for (const item of items) {
         const trimmed = item.str.trim();
         const combined = combinedRadioRegex.exec(trimmed);
         if (combined) {
-          const option = combined[1];
-          if (seenRadioOptions.has(option)) continue;
-          seenRadioOptions.add(option);
-
-          const x = item.transform[4] + offsets.x;
-          const y = viewport.height - item.transform[5] + offsets.y;
-          const fontSize = item.height || 12;
-
-          let selected = false;
-          const autoFill = RADIO_AUTO_FILL["id"];
-          if (autoFill) {
-            const patientVal = data.patientData[autoFill.sourceField] || "";
-            const expectedOption = autoFill.valueMap[patientVal];
-            if (expectedOption === option) {
-              selected = true;
-            }
-          }
-
-          radios.push({
-            token: `{radio_id_${option}}`,
-            group: "id",
-            option,
-            x,
-            y,
-            pageIndex: pageNum - 1,
-            selected,
-            fontSize,
-          });
+          addRadioFromItem(combined[1], item.transform[4], item.transform[5], item.height);
           continue;
         }
 
         const idMatch = idItemRegex.exec(trimmed);
         if (idMatch) {
-          const option = idMatch[1];
-          if (seenRadioOptions.has(option)) continue;
-          seenRadioOptions.add(option);
-
-          const x = item.transform[4] + offsets.x;
-          const y = viewport.height - item.transform[5] + offsets.y;
-          const fontSize = item.height || 12;
-
-          let selected = false;
-          const autoFill = RADIO_AUTO_FILL["id"];
-          if (autoFill) {
-            const patientVal = data.patientData[autoFill.sourceField] || "";
-            const expectedOption = autoFill.valueMap[patientVal];
-            if (expectedOption === option) {
-              selected = true;
-            }
-          }
-
-          radios.push({
-            token: `{radio_id_${option}}`,
-            group: "id",
-            option,
-            x,
-            y,
-            pageIndex: pageNum - 1,
-            selected,
-            fontSize,
-          });
+          addRadioFromItem(idMatch[1], item.transform[4], item.transform[5], item.height);
         }
       }
 
@@ -528,34 +508,9 @@ export function GizmoForm({ data, onClose }: GizmoFormProps) {
           if (!otherMatch) continue;
 
           const option = otherMatch[1];
-          if (seenRadioOptions.has(option)) continue;
-          seenRadioOptions.add(option);
-
-          const anchorItem = other.transform[5] <= item.transform[5] ? other : item;
-          const x = Math.min(item.transform[4], other.transform[4]) + offsets.x;
-          const y = viewport.height - anchorItem.transform[5] + offsets.y;
-          const fontSize = anchorItem.height || 12;
-
-          let selected = false;
-          const autoFill = RADIO_AUTO_FILL["id"];
-          if (autoFill) {
-            const patientVal = data.patientData[autoFill.sourceField] || "";
-            const expectedOption = autoFill.valueMap[patientVal];
-            if (expectedOption === option) {
-              selected = true;
-            }
-          }
-
-          radios.push({
-            token: `{radio_id_${option}}`,
-            group: "id",
-            option,
-            x,
-            y,
-            pageIndex: pageNum - 1,
-            selected,
-            fontSize,
-          });
+          const anchorX = Math.min(item.transform[4], other.transform[4]);
+          const anchorY = Math.max(item.transform[5], other.transform[5]);
+          addRadioFromItem(option, anchorX, anchorY, other.height || item.height);
         }
       }
     }
@@ -671,11 +626,12 @@ export function GizmoForm({ data, onClose }: GizmoFormProps) {
           if (!page) continue;
 
           const pageHeight = page.getHeight();
-          const radius = Math.max(radio.fontSize * 0.3, 4);
-          page.drawCircle({
-            x: radio.x + radius,
-            y: pageHeight - radio.y,
-            size: radius,
+          const sz = 8;
+          page.drawRectangle({
+            x: radio.x,
+            y: pageHeight - radio.y - sz + 2,
+            width: sz,
+            height: sz,
             color: rgb(0, 0, 0),
           });
         }
@@ -733,7 +689,8 @@ export function GizmoForm({ data, onClose }: GizmoFormProps) {
           if (!radio.selected) continue;
           const page = pages[radio.pageIndex];
           if (!page) continue;
-          page.drawCircle({ x: radio.x + Math.max(radio.fontSize * 0.3, 4), y: page.getHeight() - radio.y, size: Math.max(radio.fontSize * 0.3, 4), color: rgb(0, 0, 0) });
+          const sz = 8;
+          page.drawRectangle({ x: radio.x, y: page.getHeight() - radio.y - sz + 2, width: sz, height: sz, color: rgb(0, 0, 0) });
         }
       }
 
@@ -834,24 +791,24 @@ export function GizmoForm({ data, onClose }: GizmoFormProps) {
 
             {mode === "placeholder" && pageRadios.map((radio, idx) => {
               const globalIdx = radioFields.indexOf(radio);
+              const size = 10 * scale;
               return (
                 <button
                   key={`radio-${globalIdx}`}
                   onClick={() => toggleRadio(globalIdx)}
-                  className={`absolute rounded-full border-2 flex items-center justify-center transition-colors ${
-                    radio.selected
-                      ? "bg-black border-black dark:bg-white dark:border-white"
-                      : "bg-white border-gray-400 hover:border-gray-600 dark:bg-gray-800"
-                  }`}
+                  className="absolute rounded-sm flex items-center justify-center transition-colors"
                   style={{
                     left: radio.x * scale,
-                    top: radio.y * scale,
-                    width: Math.max(radio.fontSize * 0.8, 14) * scale,
-                    height: Math.max(radio.fontSize * 0.8, 14) * scale,
+                    top: (radio.y - 2) * scale,
+                    width: size,
+                    height: size,
+                    backgroundColor: radio.selected ? "#000" : "#fff",
+                    border: `${Math.max(1, 1.5 * scale)}px solid ${radio.selected ? "#000" : "#999"}`,
+                    zIndex: 10,
                   }}
                   data-testid={`radio-${radio.group}-${radio.option}`}
                 >
-                  {radio.selected && <Check className="text-white dark:text-black" style={{ width: 8 * scale, height: 8 * scale }} />}
+                  {radio.selected && <Check className="text-white" style={{ width: 7 * scale, height: 7 * scale }} />}
                 </button>
               );
             })}
