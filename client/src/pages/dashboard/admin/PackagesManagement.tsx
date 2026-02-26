@@ -288,7 +288,7 @@ export default function PackagesManagement() {
                           <TableCell className="max-w-xs truncate">
                             {pkg.description || "-"}
                           </TableCell>
-                          <TableCell>${Number(pkg.price).toFixed(2)}</TableCell>
+                          <TableCell>${(Number(pkg.price) / 100).toFixed(2)}</TableCell>
                           <TableCell>
                             <Badge variant={pkg.isActive ? "default" : "secondary"}>
                               {pkg.isActive ? "Active" : "Inactive"}
