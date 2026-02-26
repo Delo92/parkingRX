@@ -6,6 +6,7 @@ This document covers all enhancements needed to upgrade another project to match
 2. **Package Radio Button Fields with 1-to-1 PDF Mapping** — admin defines radio options that map directly to PDF radio buttons
 3. **Patient Draft Save to Firestore** — patients can save progress and come back later
 4. **Manual Payment Draft Integration** — admin manual payment pulls in patient's saved answers
+5. **Authorize.Net Payment Integration** — credit card payment via Accept.js client-side tokenization, server-side charge, auto-assigns to doctor on success
 
 ---
 
@@ -654,6 +655,814 @@ After the application is created and steps are set up, clear the patient's draft
 
 ```typescript
 await storage.updateUser(targetUser.id, { draftFormData: {} } as any);
+```
+
+---
+
+## Part 5: Authorize.Net Payment Integration
+
+### Overview
+
+**Before**: The wizard submitted the application immediately with no payment step. Either `autoSendToDoctor: true` fired instantly, or the application sat with no payment mechanism.
+
+**After**: The wizard has 3 steps — Select Permit → Your Information → Review & Pay. On Step 3, the patient sees a review of their order plus a credit card form. Card data is tokenized client-side by Authorize.Net Accept.js (never touches our server), then the token is sent to our backend which charges the card via the Authorize.Net API. On successful payment, the application is created with `paid` status and automatically assigned to a doctor via round-robin. Admin can also manually process payment for `awaiting_payment` applications as a fallback.
+
+**Secrets required**:
+- `AUTHORIZENET_API_LOGIN_ID` — from Authorize.Net Merchant Interface > Account > Settings > API Credentials & Keys
+- `AUTHORIZENET_TRANSACTION_KEY` — same location
+- `AUTHORIZENET_CLIENT_KEY` — from Account > Settings > Manage Public Client Key
+- `AUTHORIZENET_SANDBOX` — set to `"true"` for test mode (uses sandbox URLs), omit or set to `"false"` for production
+
+### 5.1 Create Server Module: `server/authorizenet.ts`
+
+Create this new file. It handles all Authorize.Net communication:
+
+```typescript
+const AUTHORIZENET_API_LOGIN_ID = process.env.AUTHORIZENET_API_LOGIN_ID || "";
+const AUTHORIZENET_TRANSACTION_KEY = process.env.AUTHORIZENET_TRANSACTION_KEY || "";
+
+const API_URL = process.env.AUTHORIZENET_SANDBOX === "true"
+  ? "https://apitest.authorize.net/xml/v1/request.api"
+  : "https://api.authorize.net/xml/v1/request.api";
+
+export function isAuthorizeNetConfigured(): boolean {
+  return !!(AUTHORIZENET_API_LOGIN_ID && AUTHORIZENET_TRANSACTION_KEY);
+}
+
+export function getAcceptJsUrl(): string {
+  return process.env.AUTHORIZENET_SANDBOX === "true"
+    ? "https://jstest.authorize.net/v1/Accept.js"
+    : "https://js.authorize.net/v1/Accept.js";
+}
+
+export function getApiLoginId(): string {
+  return AUTHORIZENET_API_LOGIN_ID;
+}
+
+interface ChargeResult {
+  success: boolean;
+  transactionId?: string;
+  authCode?: string;
+  message: string;
+  responseCode?: string;
+}
+
+export async function chargeCard(params: {
+  opaqueDataDescriptor: string;
+  opaqueDataValue: string;
+  amount: number; // in cents
+  orderId?: string;
+  customerEmail?: string;
+  customerFirstName?: string;
+  customerLastName?: string;
+  description?: string;
+}): Promise<ChargeResult> {
+  if (!isAuthorizeNetConfigured()) {
+    throw new Error("Authorize.Net is not configured");
+  }
+
+  const amountStr = (params.amount / 100).toFixed(2); // convert cents to dollars
+
+  const requestBody: any = {
+    createTransactionRequest: {
+      merchantAuthentication: {
+        name: AUTHORIZENET_API_LOGIN_ID,
+        transactionKey: AUTHORIZENET_TRANSACTION_KEY,
+      },
+      transactionRequest: {
+        transactionType: "authCaptureTransaction",
+        amount: amountStr,
+        payment: {
+          opaqueData: {
+            dataDescriptor: params.opaqueDataDescriptor,
+            dataValue: params.opaqueDataValue,
+          },
+        },
+        order: params.orderId ? {
+          invoiceNumber: params.orderId.slice(0, 20),
+          description: (params.description || "Handicap Permit Application").slice(0, 255),
+        } : undefined,
+        customer: params.customerEmail ? {
+          email: params.customerEmail,
+        } : undefined,
+        billTo: (params.customerFirstName || params.customerLastName) ? {
+          firstName: (params.customerFirstName || "").slice(0, 50),
+          lastName: (params.customerLastName || "").slice(0, 50),
+        } : undefined,
+      },
+    },
+  };
+
+  try {
+    const response = await fetch(API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(requestBody),
+    });
+
+    const text = await response.text();
+    const cleanText = text.replace(/^\uFEFF/, ""); // strip BOM
+    const result = JSON.parse(cleanText);
+
+    const txResponse = result?.transactionResponse;
+    const messages = result?.messages;
+
+    if (messages?.resultCode === "Ok" && txResponse?.responseCode === "1") {
+      return {
+        success: true,
+        transactionId: txResponse.transId,
+        authCode: txResponse.authCode,
+        responseCode: txResponse.responseCode,
+        message: "Payment processed successfully",
+      };
+    }
+
+    let errorMessage = "Payment failed";
+    if (txResponse?.errors?.length > 0) {
+      errorMessage = txResponse.errors[0].errorText;
+    } else if (messages?.message?.length > 0) {
+      errorMessage = messages.message[0].text;
+    }
+
+    return {
+      success: false,
+      responseCode: txResponse?.responseCode,
+      message: errorMessage,
+    };
+  } catch (error: any) {
+    console.error("Authorize.Net API error:", error);
+    return {
+      success: false,
+      message: error.message || "Payment processing error",
+    };
+  }
+}
+```
+
+### 5.2 Backend: Import and Add Payment Endpoints (routes.ts)
+
+#### a. Import the module
+
+At the top of `routes.ts`, add:
+
+```typescript
+import { chargeCard, isAuthorizeNetConfigured, getAcceptJsUrl, getApiLoginId } from "./authorizenet";
+```
+
+#### b. Add the config endpoint (public, no auth)
+
+This returns the Accept.js URL and public keys so the frontend can load the script and tokenize cards:
+
+```typescript
+app.get("/api/payment/config", (req, res) => {
+  res.json({
+    configured: isAuthorizeNetConfigured(),
+    acceptJsUrl: getAcceptJsUrl(),
+    apiLoginId: getApiLoginId(),
+    clientKey: process.env.AUTHORIZENET_CLIENT_KEY || "",
+  });
+});
+```
+
+#### c. Add the charge endpoint (requires auth)
+
+This receives the tokenized card data (opaqueData from Accept.js), charges the card, creates the application with `paid` status, and auto-assigns to a doctor. Place it before the `GET /api/applications/:id` route:
+
+```typescript
+app.post("/api/payment/charge", requireAuth, async (req, res) => {
+  try {
+    const { opaqueDataDescriptor, opaqueDataValue, packageId, formData } = req.body;
+
+    if (!opaqueDataDescriptor || !opaqueDataValue) {
+      res.status(400).json({ message: "Payment token is required" });
+      return;
+    }
+    if (!packageId) {
+      res.status(400).json({ message: "Package is required" });
+      return;
+    }
+
+    const pkg = await storage.getPackage(packageId);
+    if (!pkg) {
+      res.status(404).json({ message: "Package not found" });
+      return;
+    }
+
+    const patient = req.user!;
+    const patientName = `${patient.firstName} ${patient.lastName}`;
+
+    // Charge the card — amount comes from the package price (server-side), NOT from client
+    const chargeResult = await chargeCard({
+      opaqueDataDescriptor,
+      opaqueDataValue,
+      amount: Number(pkg.price), // price is stored in cents
+      orderId: `APP-${Date.now()}`,
+      customerEmail: patient.email,
+      customerFirstName: patient.firstName,
+      customerLastName: patient.lastName,
+      description: `${pkg.name} - Handicap Permit Application`,
+    });
+
+    if (!chargeResult.success) {
+      res.status(402).json({ message: chargeResult.message });
+      return;
+    }
+
+    // Create the application with paid status
+    const workflowSteps = (pkg.workflowSteps as string[]) || defaultConfig.workflowSteps;
+    const application = await storage.createApplication({
+      userId: patient.id,
+      packageId,
+      currentStep: 1,
+      totalSteps: workflowSteps.length,
+      status: "pending",
+      formData: {
+        ...(formData || {}),
+        paymentTransactionId: chargeResult.transactionId,
+        paymentAuthCode: chargeResult.authCode,
+      },
+      paymentStatus: "paid",
+      paymentAmount: pkg.price,
+    });
+
+    for (let i = 0; i < workflowSteps.length; i++) {
+      await storage.createApplicationStep({
+        applicationId: application.id,
+        stepNumber: i + 1,
+        name: workflowSteps[i],
+        status: i === 0 ? "in-progress" : "pending",
+      });
+    }
+
+    // Auto-assign to doctor (same round-robin logic used elsewhere)
+    const adminSettings = await storage.getAdminSettings();
+    const patientAppState = formData?.state || patient.state || "";
+    const doctor = await storage.getNextDoctorForAssignment(patientAppState || undefined);
+
+    if (doctor) {
+      const doctorUser = await storage.getUser(doctor.userId || doctor.id);
+      const protocol = process.env.NODE_ENV === "production" ? "https" : "https";
+      const host = req.get("host") || "localhost:5000";
+
+      if (adminSettings?.autoCompleteApplications) {
+        // Auto-complete path (skip doctor review)
+        await storage.updateApplication(application.id, {
+          status: "doctor_approved",
+          assignedReviewerId: doctor.userId || doctor.id,
+          level2ApprovedAt: new Date(),
+          level2ApprovedBy: doctor.userId || doctor.id,
+        });
+        await autoGenerateDocument(application.id, doctor.userId || doctor.id);
+        fireAutoMessageTriggers(application.id, "doctor_approved");
+
+        // Email patient
+        const patientContactEmail = getContactEmail(patient);
+        if (patientContactEmail) {
+          const dashboardUrl = `${protocol}://${host}/dashboard/applicant/documents`;
+          sendPatientApprovalEmail({
+            patientEmail: patientContactEmail, patientName,
+            packageName: pkg.name, applicationId: application.id, dashboardUrl,
+          }).catch(err => console.error("Payment auto-complete patient email error:", err));
+        }
+        // Email doctor copy
+        if (doctorUser) {
+          sendDoctorCompletionCopyEmail({
+            doctorEmail: getContactEmail(doctorUser),
+            doctorName: doctorUser.lastName || doctor.fullName || "Doctor",
+            patientName, patientEmail: getContactEmail(patient),
+            packageName: pkg.name, applicationId: application.id,
+            formData: formData || {},
+          }).catch(err => console.error("Payment auto-complete doctor copy error:", err));
+        }
+        // Email admin notification
+        const notificationEmail = adminSettings?.notificationEmail;
+        if (notificationEmail) {
+          sendAdminNotificationEmail({
+            adminEmail: notificationEmail,
+            doctorName: doctorUser?.lastName || doctor.fullName || "Doctor",
+            patientName, patientEmail: getContactEmail(patient),
+            packageName: pkg.name, formData: formData || {},
+            reviewUrl: `${protocol}://${host}/dashboard/admin/applications`,
+            applicationId: application.id,
+          }).catch(err => console.error("Payment auto-complete admin email error:", err));
+        }
+      } else {
+        // Normal path — assign to doctor for review
+        const token = randomBytes(32).toString("hex");
+        const expiresAt = new Date();
+        expiresAt.setDate(expiresAt.getDate() + 7);
+
+        await storage.createDoctorReviewToken({
+          applicationId: application.id,
+          doctorId: doctor.userId || doctor.id,
+          token, status: "pending", expiresAt,
+        });
+        await storage.updateApplication(application.id, {
+          status: "doctor_review",
+          assignedReviewerId: doctor.userId || doctor.id,
+        });
+
+        const reviewUrl = `${protocol}://${host}/review/${token}`;
+
+        // Email doctor with review link
+        if (doctorUser) {
+          sendDoctorApprovalEmail({
+            doctorEmail: getContactEmail(doctorUser),
+            doctorName: doctorUser.lastName || doctor.fullName || "Doctor",
+            patientName, patientEmail: getContactEmail(patient),
+            packageName: pkg.name, formData: formData || {},
+            reviewUrl, applicationId: application.id,
+          }).catch(err => console.error("Payment doctor email error:", err));
+        }
+        // Email admin notification
+        const notificationEmail = adminSettings?.notificationEmail;
+        if (notificationEmail) {
+          sendAdminNotificationEmail({
+            adminEmail: notificationEmail,
+            doctorName: doctorUser?.lastName || doctor.fullName || "Doctor",
+            patientName, patientEmail: getContactEmail(patient),
+            packageName: pkg.name, formData: formData || {},
+            reviewUrl, applicationId: application.id,
+          }).catch(err => console.error("Payment admin email error:", err));
+        }
+        fireAutoMessageTriggers(application.id, "doctor_review");
+      }
+    }
+
+    // Log the payment activity
+    await storage.createActivityLog({
+      userId: patient.id,
+      action: "payment_completed",
+      entityType: "application",
+      entityId: application.id,
+      details: {
+        transactionId: chargeResult.transactionId,
+        amount: Number(pkg.price),
+        packageName: pkg.name,
+      },
+    });
+
+    // Clear draft
+    await storage.updateUser(patient.id, { draftFormData: {} } as any);
+
+    res.json({
+      success: true,
+      application,
+      transactionId: chargeResult.transactionId,
+      message: "Payment processed and application submitted successfully",
+    });
+  } catch (error: any) {
+    console.error("Payment charge error:", error);
+    res.status(500).json({ message: error.message || "Payment processing failed" });
+  }
+});
+```
+
+### 5.3 Backend: Admin Process Payment Endpoint (routes.ts)
+
+This endpoint lets an admin manually mark an `awaiting_payment` application as paid and trigger the doctor assignment pipeline. Add it near the other admin application routes:
+
+```typescript
+app.post("/api/admin/applications/:id/process-payment", requireAuth, requireLevel(3), async (req, res) => {
+  try {
+    const applicationId = req.params.id as string;
+    const application = await storage.getApplication(applicationId);
+    if (!application) {
+      res.status(404).json({ message: "Application not found" });
+      return;
+    }
+
+    if (application.status !== "awaiting_payment") {
+      res.status(400).json({ message: `Cannot process payment for application with status: ${application.status}` });
+      return;
+    }
+
+    await storage.updateApplication(applicationId, {
+      paymentStatus: "paid",
+      status: "pending",
+    });
+
+    // Then trigger the same doctor assignment + email logic as the payment charge endpoint
+    // (round-robin assignment, token creation, emails to doctor + admin)
+    // ... same pattern as section 5.2 above, using application.formData and application.userId
+    // See server/routes.ts for the full implementation
+
+    res.json({
+      success: true,
+      message: "Payment processed and application sent for review",
+      reviewUrl,  // from doctor assignment
+      doctor: doctorInfo,  // { id, name }
+    });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+});
+```
+
+### 5.4 Frontend: Wizard State Variables (NewApplication.tsx)
+
+Add these state variables alongside the existing wizard state:
+
+```typescript
+const [step, setStep] = useState(1);
+const totalSteps = 3; // was 4, now: Select Permit → Your Information → Review & Pay
+
+// Payment state
+const [cardNumber, setCardNumber] = useState("");
+const [cardExpMonth, setCardExpMonth] = useState("");
+const [cardExpYear, setCardExpYear] = useState("");
+const [cardCvv, setCardCvv] = useState("");
+const [paymentProcessing, setPaymentProcessing] = useState(false);
+const [paymentError, setPaymentError] = useState("");
+const [acceptJsReady, setAcceptJsReady] = useState(false);
+```
+
+### 5.5 Frontend: Payment Config Query & Accept.js Loading (NewApplication.tsx)
+
+Add this query after the packages query. It fetches the Authorize.Net config and dynamically loads the Accept.js script:
+
+```typescript
+const { data: paymentConfig } = useQuery<{
+  configured: boolean;
+  acceptJsUrl: string;
+  apiLoginId: string;
+  clientKey: string;
+}>({
+  queryKey: ["/api/payment/config"],
+});
+
+useEffect(() => {
+  if (paymentConfig?.acceptJsUrl) {
+    const existing = document.querySelector(`script[src="${paymentConfig.acceptJsUrl}"]`);
+    if (existing) {
+      if ((window as any).Accept) setAcceptJsReady(true);
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = paymentConfig.acceptJsUrl;
+    script.charset = "utf-8";
+    script.onload = () => setAcceptJsReady(true);
+    document.head.appendChild(script);
+  }
+}, [paymentConfig?.acceptJsUrl]);
+```
+
+### 5.6 Frontend: Payment Processing Function (NewApplication.tsx)
+
+Replace the old `createApplication` mutation with `buildFormData` and `processPayment`:
+
+```typescript
+const buildFormData = () => {
+  const data = form.getValues();
+  const fullName = [profile?.firstName, profile?.middleName, profile?.lastName].filter(Boolean).join(" ");
+  const conditionLabel = DISABILITY_CONDITIONS.find(c => c.value === data.disabilityCondition)?.label || data.disabilityCondition;
+  return {
+    ...data,
+    ...customFields,
+    fullName,
+    firstName: profile?.firstName,
+    middleName: profile?.middleName,
+    lastName: profile?.lastName,
+    email: profile?.email,
+    phone: profile?.phone,
+    dateOfBirth: profile?.dateOfBirth,
+    address: profile?.address,
+    city: profile?.city,
+    state: profile?.state,
+    zipCode: profile?.zipCode,
+    driverLicenseNumber: profile?.driverLicenseNumber,
+    medicalCondition: conditionLabel,
+    disabilityCondition: data.disabilityCondition,
+    ssn: profile?.ssn,
+    hasMedicare: profile?.hasMedicare,
+    isVeteran: profile?.isVeteran,
+  };
+};
+
+const processPayment = async () => {
+  if (!cardNumber || !cardExpMonth || !cardExpYear || !cardCvv) {
+    setPaymentError("Please fill in all card fields");
+    return;
+  }
+
+  setPaymentProcessing(true);
+  setPaymentError("");
+
+  try {
+    const Accept = (window as any).Accept;
+    if (!Accept) {
+      throw new Error("Payment system is loading. Please wait a moment and try again.");
+    }
+
+    // Step 1: Tokenize card client-side via Accept.js
+    const secureData = {
+      authData: {
+        clientKey: paymentConfig?.clientKey || "",
+        apiLoginID: paymentConfig?.apiLoginId || "",
+      },
+      cardData: {
+        cardNumber: cardNumber.replace(/\s/g, ""),
+        month: cardExpMonth.padStart(2, "0"),
+        year: cardExpYear.length === 2 ? "20" + cardExpYear : cardExpYear,
+        cardCode: cardCvv,
+      },
+    };
+
+    const opaqueData = await new Promise<{ dataDescriptor: string; dataValue: string }>((resolve, reject) => {
+      Accept.dispatchData(secureData, (response: any) => {
+        if (response.opaqueData) {
+          resolve(response.opaqueData);
+        } else {
+          const errorMsg = response.messages?.message?.[0]?.text || "Card validation failed";
+          reject(new Error(errorMsg));
+        }
+      });
+    });
+
+    // Step 2: Send token to server to charge and create application
+    const formData = buildFormData();
+    const res = await apiRequest("POST", "/api/payment/charge", {
+      opaqueDataDescriptor: opaqueData.dataDescriptor,
+      opaqueDataValue: opaqueData.dataValue,
+      packageId: form.getValues("packageId"),
+      formData,
+    });
+    const result = await res.json();
+
+    if (!result.success) {
+      throw new Error(result.message || "Payment failed");
+    }
+
+    // Step 3: Success — clear draft, redirect
+    queryClient.invalidateQueries({ queryKey: ["/api/applications"] });
+    apiRequest("PUT", "/api/profile/draft-form", { draftFormData: {} }).catch(() => {});
+    queryClient.invalidateQueries({ queryKey: ["/api/profile/draft-form"] });
+    toast({
+      title: "Payment Successful!",
+      description: "Your application has been submitted and is being processed.",
+    });
+    setLocation("/dashboard/applicant");
+  } catch (error: any) {
+    setPaymentError(error.message || "Payment processing failed");
+    toast({
+      title: "Payment Failed",
+      description: error.message || "Please check your card details and try again.",
+      variant: "destructive",
+    });
+  } finally {
+    setPaymentProcessing(false);
+  }
+};
+```
+
+### 5.7 Frontend: Step 3 — Review & Pay UI (NewApplication.tsx)
+
+Replace the old Step 3 (payment placeholder) and Step 4 (review) with a single Step 3 that combines both:
+
+```tsx
+{step === 3 && (
+  <div className="space-y-6">
+    {/* Order Review Card */}
+    <Card data-testid="step-review-submit">
+      <CardHeader>
+        <CardTitle>Review Your Order</CardTitle>
+        <CardDescription>Verify your information before payment</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <div className="p-4 rounded-lg border bg-muted/30">
+          <p className="text-sm font-medium text-muted-foreground mb-1">Selected Permit Type</p>
+          <p className="text-lg font-bold" data-testid="text-selected-package">{selectedPackage?.name}</p>
+          <p className="text-sm text-muted-foreground mt-1">{selectedPackage?.description}</p>
+          <p className="text-2xl font-bold text-primary mt-2" data-testid="text-selected-price">
+            ${selectedPackage ? (Number(selectedPackage.price) / 100).toFixed(2) : "0.00"}
+          </p>
+        </div>
+        {/* Applicant info, qualifying condition, reason — same review fields as before */}
+      </CardContent>
+    </Card>
+
+    {/* Payment Card */}
+    <Card data-testid="step-payment">
+      <CardHeader>
+        <CardTitle>Payment Information</CardTitle>
+        <CardDescription>Enter your card details to complete your order</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="p-4 rounded-lg border bg-primary/5 text-center mb-4">
+          <p className="text-sm text-muted-foreground">Amount Due</p>
+          <p className="text-3xl font-bold text-primary" data-testid="text-payment-amount">
+            ${selectedPackage ? (Number(selectedPackage.price) / 100).toFixed(2) : "0.00"}
+          </p>
+        </div>
+
+        {paymentError && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription data-testid="text-payment-error">{paymentError}</AlertDescription>
+          </Alert>
+        )}
+
+        <div className="space-y-2">
+          <Label htmlFor="cardNumber">Card Number</Label>
+          <Input
+            id="cardNumber"
+            placeholder="4111 1111 1111 1111"
+            value={cardNumber}
+            onChange={(e) => setCardNumber(e.target.value.replace(/[^\d\s]/g, "").slice(0, 19))}
+            maxLength={19}
+            data-testid="input-card-number"
+            disabled={paymentProcessing}
+          />
+        </div>
+
+        <div className="grid grid-cols-3 gap-4">
+          <div className="space-y-2">
+            <Label htmlFor="expMonth">Month</Label>
+            <Select value={cardExpMonth} onValueChange={setCardExpMonth} disabled={paymentProcessing}>
+              <SelectTrigger data-testid="select-exp-month">
+                <SelectValue placeholder="MM" />
+              </SelectTrigger>
+              <SelectContent>
+                {Array.from({ length: 12 }, (_, i) => {
+                  const m = String(i + 1).padStart(2, "0");
+                  return <SelectItem key={m} value={m}>{m}</SelectItem>;
+                })}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="expYear">Year</Label>
+            <Select value={cardExpYear} onValueChange={setCardExpYear} disabled={paymentProcessing}>
+              <SelectTrigger data-testid="select-exp-year">
+                <SelectValue placeholder="YYYY" />
+              </SelectTrigger>
+              <SelectContent>
+                {Array.from({ length: 10 }, (_, i) => {
+                  const y = String(new Date().getFullYear() + i);
+                  return <SelectItem key={y} value={y}>{y}</SelectItem>;
+                })}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="cvv">CVV</Label>
+            <Input
+              id="cvv"
+              placeholder="123"
+              value={cardCvv}
+              onChange={(e) => setCardCvv(e.target.value.replace(/\D/g, "").slice(0, 4))}
+              maxLength={4}
+              data-testid="input-cvv"
+              disabled={paymentProcessing}
+            />
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2 text-xs text-muted-foreground mt-2">
+          <Lock className="h-3.5 w-3.5" />
+          Your payment is processed securely through Authorize.Net. Card details are never stored on our servers.
+        </div>
+      </CardContent>
+    </Card>
+  </div>
+)}
+```
+
+### 5.8 Frontend: Submit Button (NewApplication.tsx)
+
+Replace the old submit button with one that calls `processPayment` and shows loading states:
+
+```tsx
+{step < totalSteps ? (
+  <Button type="button" onClick={nextStep} data-testid="button-next-step">
+    Next
+    <ArrowRight className="ml-2 h-4 w-4" />
+  </Button>
+) : (
+  <Button
+    type="button"
+    onClick={processPayment}
+    disabled={paymentProcessing || !acceptJsReady}
+    data-testid="button-submit-application"
+  >
+    {paymentProcessing ? (
+      <>
+        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+        Processing Payment...
+      </>
+    ) : !acceptJsReady ? (
+      <>
+        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+        Loading Payment...
+      </>
+    ) : (
+      <>
+        <Check className="mr-2 h-4 w-4" />
+        Pay ${selectedPackage ? (Number(selectedPackage.price) / 100).toFixed(2) : "0.00"} & Submit
+      </>
+    )}
+  </Button>
+)}
+```
+
+**Key details:**
+- Button is `type="button"` (not `type="submit"`) — payment is handled by `processPayment`, not form submission
+- Button is disabled until Accept.js has loaded (`acceptJsReady` state)
+- Shows "Loading Payment..." while Accept.js script loads, "Processing Payment..." during charge
+
+### 5.9 Frontend: Admin Applications List — Process Payment Button (ApplicationsListPage.tsx)
+
+Add the ability for admins to manually process payment on `awaiting_payment` applications:
+
+#### a. Add DollarSign icon import
+
+```typescript
+import { ..., DollarSign } from "lucide-react";
+```
+
+#### b. Add process payment mutation
+
+```typescript
+const [processingPaymentId, setProcessingPaymentId] = useState<string | null>(null);
+
+const processPaymentMutation = useMutation({
+  mutationFn: async (applicationId: string) => {
+    const res = await apiRequest("POST", `/api/admin/applications/${applicationId}/process-payment`);
+    return res.json();
+  },
+  onSuccess: (data) => {
+    toast({
+      title: "Payment Processed",
+      description: data.message || "Application payment confirmed and sent for review.",
+    });
+    if (data.reviewUrl && data.doctor) {
+      setReviewLinkDialog({ url: data.reviewUrl, doctorName: data.doctor.name || "Doctor" });
+    }
+    queryClient.invalidateQueries({ queryKey: ["/api/admin/applications"] });
+    setProcessingPaymentId(null);
+  },
+  onError: (error: any) => {
+    toast({
+      title: "Error",
+      description: error.message || "Failed to process payment",
+      variant: "destructive",
+    });
+    setProcessingPaymentId(null);
+  },
+});
+```
+
+#### c. Add "Awaiting Payment" status filter and stat card
+
+In the status filter dropdown:
+```tsx
+<SelectItem value="awaiting_payment">Awaiting Payment</SelectItem>
+```
+
+Add a stat card:
+```tsx
+<Card>
+  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 gap-2">
+    <CardTitle className="text-sm font-medium">Awaiting Payment</CardTitle>
+    <DollarSign className="h-4 w-4 text-orange-500" />
+  </CardHeader>
+  <CardContent>
+    <div className="text-2xl font-bold">{awaitingPaymentCount}</div>
+    <p className="text-xs text-muted-foreground">Need payment</p>
+  </CardContent>
+</Card>
+```
+
+#### d. Add Process Payment button in application rows
+
+In the application row, add this after the existing "Send to Doctor" button:
+```tsx
+{app.status === "awaiting_payment" && user.userLevel >= 3 && (
+  <Button
+    size="sm"
+    variant="outline"
+    onClick={() => {
+      setProcessingPaymentId(app.id);
+      processPaymentMutation.mutate(app.id);
+    }}
+    disabled={processPaymentMutation.isPending && processingPaymentId === app.id}
+    data-testid={`button-process-payment-${app.id}`}
+  >
+    {processPaymentMutation.isPending && processingPaymentId === app.id ? (
+      <Loader2 className="h-4 w-4 animate-spin mr-1" />
+    ) : (
+      <DollarSign className="h-4 w-4 mr-1" />
+    )}
+    Process Payment
+  </Button>
+)}
+```
+
+#### e. Add "Awaiting Payment" badge variant in ApplicantDashboard.tsx
+
+In the `getStatusBadge` function, add:
+```typescript
+awaiting_payment: { variant: "outline", label: "Payment Pending" },
 ```
 
 ---
