@@ -15,6 +15,7 @@ import {
 import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { queryClient } from "@/lib/queryClient";
 import { Upload, FileText, Eye, FolderOpen, Printer, Calendar, Loader2, FileType } from "lucide-react";
 import { auth } from "@/lib/firebase";
 import { Link } from "wouter";
@@ -36,6 +37,7 @@ export default function DocumentsPage() {
   const { toast } = useToast();
   const [isUploadOpen, setIsUploadOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
 
   const { data: documents, isLoading } = useQuery<DocumentRecord[]>({
     queryKey: ["/api/documents"],
@@ -63,14 +65,37 @@ export default function DocumentsPage() {
     }
   };
 
-  const handleUpload = () => {
-    if (selectedFile) {
+  const handleUpload = async () => {
+    if (!selectedFile) return;
+    setIsUploading(true);
+    try {
+      const token = await auth.currentUser?.getIdToken();
+      const fd = new FormData();
+      fd.append("file", selectedFile);
+      const res = await fetch("/api/upload/media", {
+        method: "POST",
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        body: fd,
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || "Upload failed");
+      }
+      queryClient.invalidateQueries({ queryKey: ["/api/documents"] });
       toast({
-        title: "Upload Started",
+        title: "Upload Complete",
         description: "Your document has been uploaded successfully.",
       });
       setIsUploadOpen(false);
       setSelectedFile(null);
+    } catch (err: any) {
+      toast({
+        title: "Upload Failed",
+        description: err.message || "Something went wrong.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploading(false);
     }
   };
 
@@ -281,8 +306,15 @@ export default function DocumentsPage() {
               <Button variant="outline" onClick={() => setIsUploadOpen(false)}>
                 Cancel
               </Button>
-              <Button onClick={handleUpload} disabled={!selectedFile} data-testid="button-confirm-upload">
-                Upload
+              <Button onClick={handleUpload} disabled={!selectedFile || isUploading} data-testid="button-confirm-upload">
+                {isUploading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Uploading...
+                  </>
+                ) : (
+                  "Upload"
+                )}
               </Button>
             </DialogFooter>
           </DialogContent>
