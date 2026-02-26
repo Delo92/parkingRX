@@ -7,6 +7,11 @@ This document covers all enhancements needed to upgrade another project to match
 3. **Patient Draft Save to Firestore** — patients can save progress and come back later
 4. **Manual Payment Draft Integration** — admin manual payment pulls in patient's saved answers
 5. **Authorize.Net Payment Integration** — credit card payment via Accept.js client-side tokenization, server-side charge, auto-assigns to doctor on success
+6. **SendGrid Email Service** — transactional emails for doctor review requests, admin notifications, doctor records copies, and patient approval notifications
+7. **Contact Email System & Admin Settings** — separate contact email per user, admin notification email config, auto-complete toggle
+8. **Auto-Send to Doctor After Payment & Email Wiring** — automatic doctor assignment and dual email dispatch (doctor + admin) on payment
+9. **Doctor Approval → Auto-Generate Document & Email Patient** — document auto-generation on approval, patient notified to download from dashboard
+10. **Radio Button Positioning Fix for Oklahoma PDF** — offset adjustment for radio IDs 6-16 to align with checkbox squares
 
 ---
 
@@ -1467,23 +1472,1081 @@ awaiting_payment: { variant: "outline", label: "Payment Pending" },
 
 ---
 
+## Part 6: SendGrid Email Service
+
+### Overview
+
+Create a server-side email service that sends transactional emails via SendGrid at key workflow moments:
+1. **Doctor gets a review request** with patient details + "Review & Approve" button
+2. **Admin gets a notification copy** with the same approve link
+3. **Doctor gets a records copy** when auto-complete is enabled (no action needed)
+4. **Patient gets an approval email** directing them to log in and download their document
+
+**Important**: The patient email does NOT include the PDF. It just tells them to sign in to their dashboard to download it.
+
+**Secrets required**:
+- `SENDGRID_API_KEY` — from SendGrid dashboard > Settings > API Keys
+- `SENDGRID_FROM_EMAIL` — your verified sender email (defaults to `noreply@parkingrx.com`)
+
+### 6.1 Install SendGrid Package
+
+```bash
+npm install @sendgrid/mail
+```
+
+### 6.2 Create `server/email.ts`
+
+```typescript
+import sgMail from "@sendgrid/mail";
+
+const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY;
+const FROM_EMAIL = process.env.SENDGRID_FROM_EMAIL || "noreply@parkingrx.com";
+
+if (SENDGRID_API_KEY) {
+  sgMail.setApiKey(SENDGRID_API_KEY);
+}
+
+function isEmailConfigured(): boolean {
+  return !!SENDGRID_API_KEY;
+}
+
+interface DoctorApprovalEmailData {
+  doctorEmail: string;
+  doctorName: string;
+  patientName: string;
+  patientEmail: string;
+  packageName: string;
+  formData: Record<string, any>;
+  reviewUrl: string;
+  applicationId: string;
+}
+
+interface AdminNotificationEmailData {
+  adminEmail: string;
+  doctorName: string;
+  patientName: string;
+  patientEmail: string;
+  packageName: string;
+  formData: Record<string, any>;
+  reviewUrl: string;
+  applicationId: string;
+}
+
+interface PatientDocumentEmailData {
+  patientEmail: string;
+  patientName: string;
+  packageName: string;
+  applicationId: string;
+  dashboardUrl: string;
+}
+
+interface DoctorCompletionCopyData {
+  doctorEmail: string;
+  doctorName: string;
+  patientName: string;
+  patientEmail: string;
+  packageName: string;
+  applicationId: string;
+  formData: Record<string, any>;
+}
+
+function formatFormData(formData: Record<string, any>): string {
+  if (!formData || Object.keys(formData).length === 0) return "<p>No additional details provided.</p>";
+  let html = '<table style="width:100%;border-collapse:collapse;margin:16px 0;">';
+  for (const [key, value] of Object.entries(formData)) {
+    const label = key.replace(/([A-Z])/g, " $1").replace(/^./, s => s.toUpperCase()).replace(/_/g, " ");
+    html += `<tr style="border-bottom:1px solid #e5e7eb;">
+      <td style="padding:8px 12px;font-weight:600;color:#374151;white-space:nowrap;">${label}</td>
+      <td style="padding:8px 12px;color:#4b5563;">${value ?? "—"}</td>
+    </tr>`;
+  }
+  html += "</table>";
+  return html;
+}
+
+export async function sendDoctorApprovalEmail(data: DoctorApprovalEmailData): Promise<boolean> {
+  if (!isEmailConfigured()) {
+    console.warn("SendGrid not configured — skipping doctor approval email");
+    return false;
+  }
+
+  const html = `
+    <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#ffffff;border-radius:8px;overflow:hidden;border:1px solid #e5e7eb;">
+      <div style="background:#1e40af;padding:24px 32px;">
+        <h1 style="color:#ffffff;margin:0;font-size:22px;">Handicap Permit Services</h1>
+        <p style="color:#bfdbfe;margin:4px 0 0;font-size:14px;">New Application Review Request</p>
+      </div>
+      <div style="padding:32px;">
+        <p style="color:#374151;font-size:16px;line-height:1.6;">Hello Dr. ${data.doctorName},</p>
+        <p style="color:#374151;font-size:16px;line-height:1.6;">A new application has been submitted and requires your review.</p>
+        <div style="background:#f9fafb;border-radius:8px;padding:20px;margin:20px 0;border:1px solid #e5e7eb;">
+          <h3 style="color:#1e40af;margin:0 0 12px;font-size:16px;">Patient Information</h3>
+          <p style="margin:4px 0;color:#4b5563;"><strong>Name:</strong> ${data.patientName}</p>
+          <p style="margin:4px 0;color:#4b5563;"><strong>Email:</strong> ${data.patientEmail}</p>
+          <p style="margin:4px 0;color:#4b5563;"><strong>Package:</strong> ${data.packageName}</p>
+          <p style="margin:4px 0;color:#4b5563;"><strong>Application ID:</strong> ${data.applicationId}</p>
+        </div>
+        <div style="margin:20px 0;">
+          <h3 style="color:#1e40af;margin:0 0 12px;font-size:16px;">Application Details</h3>
+          ${formatFormData(data.formData)}
+        </div>
+        <div style="text-align:center;margin:32px 0;">
+          <a href="${data.reviewUrl}" style="display:inline-block;background:#16a34a;color:#ffffff;padding:14px 40px;text-decoration:none;border-radius:8px;font-size:18px;font-weight:600;">
+            Review &amp; Approve
+          </a>
+        </div>
+        <p style="color:#6b7280;font-size:13px;text-align:center;">
+          This link will take you to the secure review portal. No login required.
+        </p>
+      </div>
+      <div style="background:#f3f4f6;padding:16px 32px;text-align:center;">
+        <p style="color:#9ca3af;font-size:12px;margin:0;">Handicap Permit Services &bull; Secure Review System</p>
+      </div>
+    </div>
+  `;
+
+  try {
+    await sgMail.send({
+      to: data.doctorEmail,
+      from: { email: FROM_EMAIL, name: "Handicap Permit Services" },
+      subject: `Review Request: ${data.patientName} — ${data.packageName}`,
+      html,
+    });
+    console.log(`Doctor approval email sent to ${data.doctorEmail}`);
+    return true;
+  } catch (error: any) {
+    console.error("Failed to send doctor approval email:", error?.response?.body || error.message);
+    return false;
+  }
+}
+
+export async function sendAdminNotificationEmail(data: AdminNotificationEmailData): Promise<boolean> {
+  if (!isEmailConfigured()) {
+    console.warn("SendGrid not configured — skipping admin notification email");
+    return false;
+  }
+
+  const html = `
+    <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#ffffff;border-radius:8px;overflow:hidden;border:1px solid #e5e7eb;">
+      <div style="background:#7c3aed;padding:24px 32px;">
+        <h1 style="color:#ffffff;margin:0;font-size:22px;">Handicap Permit Services</h1>
+        <p style="color:#ddd6fe;margin:4px 0 0;font-size:14px;">Admin Notification — New Review Request</p>
+      </div>
+      <div style="padding:32px;">
+        <p style="color:#374151;font-size:16px;line-height:1.6;">A new application has been sent for doctor review.</p>
+        <div style="background:#f9fafb;border-radius:8px;padding:20px;margin:20px 0;border:1px solid #e5e7eb;">
+          <h3 style="color:#7c3aed;margin:0 0 12px;font-size:16px;">Assignment Details</h3>
+          <p style="margin:4px 0;color:#4b5563;"><strong>Patient:</strong> ${data.patientName}</p>
+          <p style="margin:4px 0;color:#4b5563;"><strong>Patient Email:</strong> ${data.patientEmail}</p>
+          <p style="margin:4px 0;color:#4b5563;"><strong>Package:</strong> ${data.packageName}</p>
+          <p style="margin:4px 0;color:#4b5563;"><strong>Assigned Doctor:</strong> Dr. ${data.doctorName}</p>
+          <p style="margin:4px 0;color:#4b5563;"><strong>Application ID:</strong> ${data.applicationId}</p>
+        </div>
+        <div style="margin:20px 0;">
+          <h3 style="color:#7c3aed;margin:0 0 12px;font-size:16px;">Application Details</h3>
+          ${formatFormData(data.formData)}
+        </div>
+        <div style="text-align:center;margin:32px 0;">
+          <a href="${data.reviewUrl}" style="display:inline-block;background:#16a34a;color:#ffffff;padding:14px 40px;text-decoration:none;border-radius:8px;font-size:18px;font-weight:600;">
+            Review &amp; Approve
+          </a>
+        </div>
+        <p style="color:#6b7280;font-size:13px;text-align:center;">
+          You can also approve this application using the button above.
+        </p>
+      </div>
+      <div style="background:#f3f4f6;padding:16px 32px;text-align:center;">
+        <p style="color:#9ca3af;font-size:12px;margin:0;">Handicap Permit Services &bull; Admin Notification</p>
+      </div>
+    </div>
+  `;
+
+  try {
+    await sgMail.send({
+      to: data.adminEmail,
+      from: { email: FROM_EMAIL, name: "Handicap Permit Services" },
+      subject: `[Admin] New Review: ${data.patientName} — ${data.packageName} (Assigned: Dr. ${data.doctorName})`,
+      html,
+    });
+    console.log(`Admin notification email sent to ${data.adminEmail}`);
+    return true;
+  } catch (error: any) {
+    console.error("Failed to send admin notification email:", error?.response?.body || error.message);
+    return false;
+  }
+}
+
+export async function sendDoctorCompletionCopyEmail(data: DoctorCompletionCopyData): Promise<boolean> {
+  if (!isEmailConfigured()) {
+    console.warn("SendGrid not configured — skipping doctor completion copy email");
+    return false;
+  }
+
+  const html = `
+    <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#ffffff;border-radius:8px;overflow:hidden;border:1px solid #e5e7eb;">
+      <div style="background:#0d9488;padding:24px 32px;">
+        <h1 style="color:#ffffff;margin:0;font-size:22px;">Handicap Permit Services</h1>
+        <p style="color:#ccfbf1;margin:4px 0 0;font-size:14px;">Application Auto-Completed — Doctor Copy</p>
+      </div>
+      <div style="padding:32px;">
+        <p style="color:#374151;font-size:16px;line-height:1.6;">Hello Dr. ${data.doctorName},</p>
+        <p style="color:#374151;font-size:16px;line-height:1.6;">
+          The following application has been <strong style="color:#0d9488;">auto-completed</strong> and the patient has been sent their permit document. This email is for your records.
+        </p>
+        <div style="background:#f9fafb;border-radius:8px;padding:20px;margin:20px 0;border:1px solid #e5e7eb;">
+          <h3 style="color:#0d9488;margin:0 0 12px;font-size:16px;">Patient Information</h3>
+          <p style="margin:4px 0;color:#4b5563;"><strong>Name:</strong> ${data.patientName}</p>
+          <p style="margin:4px 0;color:#4b5563;"><strong>Email:</strong> ${data.patientEmail}</p>
+          <p style="margin:4px 0;color:#4b5563;"><strong>Package:</strong> ${data.packageName}</p>
+          <p style="margin:4px 0;color:#4b5563;"><strong>Application ID:</strong> ${data.applicationId}</p>
+        </div>
+        <div style="margin:20px 0;">
+          <h3 style="color:#0d9488;margin:0 0 12px;font-size:16px;">Application Details</h3>
+          ${formatFormData(data.formData)}
+        </div>
+        <p style="color:#6b7280;font-size:13px;text-align:center;">
+          No action is required from you. This is a copy for your records.
+        </p>
+      </div>
+      <div style="background:#f3f4f6;padding:16px 32px;text-align:center;">
+        <p style="color:#9ca3af;font-size:12px;margin:0;">Handicap Permit Services &bull; Doctor Records Copy</p>
+      </div>
+    </div>
+  `;
+
+  try {
+    await sgMail.send({
+      to: data.doctorEmail,
+      from: { email: FROM_EMAIL, name: "Handicap Permit Services" },
+      subject: `[Records] Auto-Completed: ${data.patientName} — ${data.packageName}`,
+      html,
+    });
+    console.log(`Doctor completion copy email sent to ${data.doctorEmail}`);
+    return true;
+  } catch (error: any) {
+    console.error("Failed to send doctor completion copy email:", error?.response?.body || error.message);
+    return false;
+  }
+}
+
+export async function sendPatientApprovalEmail(data: PatientDocumentEmailData): Promise<boolean> {
+  if (!isEmailConfigured()) {
+    console.warn("SendGrid not configured — skipping patient document email");
+    return false;
+  }
+
+  const html = `
+    <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;background:#ffffff;border-radius:8px;overflow:hidden;border:1px solid #e5e7eb;">
+      <div style="background:#16a34a;padding:24px 32px;">
+        <h1 style="color:#ffffff;margin:0;font-size:22px;">Handicap Permit Services</h1>
+        <p style="color:#bbf7d0;margin:4px 0 0;font-size:14px;">Your Application Has Been Approved!</p>
+      </div>
+      <div style="padding:32px;">
+        <p style="color:#374151;font-size:16px;line-height:1.6;">Hello ${data.patientName},</p>
+        <p style="color:#374151;font-size:16px;line-height:1.6;">
+          Great news! Your <strong>${data.packageName}</strong> application has been reviewed and <strong style="color:#16a34a;">approved</strong> by a licensed medical professional.
+        </p>
+        <div style="background:#f0fdf4;border-radius:8px;padding:20px;margin:20px 0;border:1px solid #bbf7d0;">
+          <h3 style="color:#16a34a;margin:0 0 8px;font-size:16px;">What's Next?</h3>
+          <p style="margin:4px 0;color:#4b5563;">Your permit document has been prepared and is ready for download. Log in to your dashboard to access it.</p>
+        </div>
+        <div style="text-align:center;margin:32px 0;">
+          <a href="${data.dashboardUrl}" style="display:inline-block;background:#1e40af;color:#ffffff;padding:14px 40px;text-decoration:none;border-radius:8px;font-size:18px;font-weight:600;">
+            View My Dashboard
+          </a>
+        </div>
+        <p style="color:#6b7280;font-size:13px;text-align:center;">Application ID: ${data.applicationId}</p>
+      </div>
+      <div style="background:#f3f4f6;padding:16px 32px;text-align:center;">
+        <p style="color:#9ca3af;font-size:12px;margin:0;">Handicap Permit Services &bull; Thank you for choosing us</p>
+      </div>
+    </div>
+  `;
+
+  try {
+    await sgMail.send({
+      to: data.patientEmail,
+      from: { email: FROM_EMAIL, name: "Handicap Permit Services" },
+      subject: `Your ${data.packageName} Has Been Approved!`,
+      html,
+    });
+    console.log(`Patient approval email sent to ${data.patientEmail}`);
+    return true;
+  } catch (error: any) {
+    console.error("Failed to send patient approval email:", error?.response?.body || error.message);
+    return false;
+  }
+}
+```
+
+### 6.3 Import Email Functions in routes.ts
+
+At the top of `server/routes.ts`:
+
+```typescript
+import { sendDoctorApprovalEmail, sendAdminNotificationEmail, sendPatientApprovalEmail, sendDoctorCompletionCopyEmail } from "./email";
+```
+
+---
+
+## Part 7: Contact Email System & Admin Settings
+
+### Overview
+
+Two related features:
+
+1. **Contact Email**: Each user can have a `contactEmail` field separate from their login email. All outbound emails use `contactEmail` if set, falling back to the login `email`. This lets users receive notifications at a different address than they log in with.
+
+2. **Admin Settings**: Global configuration stored in a single Firestore document (`adminSettings/default`) with two key fields:
+   - `notificationEmail` — the admin email that gets copies of all doctor review requests
+   - `autoCompleteApplications` — boolean toggle that skips doctor review and auto-completes applications
+
+### 7.1 Contact Email Helper (routes.ts)
+
+Add this near the top of `routes.ts`, before route definitions:
+
+```typescript
+function getContactEmail(user: Record<string, any>): string {
+  return user.contactEmail || user.email;
+}
+```
+
+**Usage**: Every time you send an email, use `getContactEmail(user)` instead of `user.email`:
+```typescript
+sendDoctorApprovalEmail({ doctorEmail: getContactEmail(doctorUser), ... });
+sendPatientApprovalEmail({ patientEmail: getContactEmail(patient), ... });
+```
+
+### 7.2 Admin Settings Storage (storage.ts)
+
+Add these methods to your storage class. They read/write a single Firestore document at `adminSettings/default`:
+
+```typescript
+async getAdminSettings(): Promise<Record<string, any> | null> {
+  const doc = await this.db.collection("adminSettings").doc("default").get();
+  return doc.exists ? doc.data() as Record<string, any> : null;
+}
+
+async updateAdminSettings(data: Record<string, any>): Promise<Record<string, any>> {
+  const ref = this.db.collection("adminSettings").doc("default");
+  await ref.set(data, { merge: true });
+  const updated = await ref.get();
+  return updated.data() as Record<string, any>;
+}
+```
+
+### 7.3 Admin Settings API Endpoints (routes.ts)
+
+```typescript
+app.get("/api/admin/settings", requireAuth, requireLevel(3), async (req, res) => {
+  try {
+    const settings = await storage.getAdminSettings();
+    res.json(settings || {});
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+app.put("/api/admin/settings", requireAuth, requireLevel(3), async (req, res) => {
+  try {
+    const settings = await storage.updateAdminSettings(req.body);
+    res.json(settings);
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+});
+```
+
+### 7.4 Admin Settings UI (SettingsPage.tsx)
+
+Add two components to the admin settings page, visible only when `user.userLevel >= 3`:
+
+#### a. Auto-Complete Toggle
+
+```tsx
+function AutoCompleteSettings() {
+  const { toast } = useToast();
+  const [isSaving, setIsSaving] = useState(false);
+
+  const { data: adminSettings } = useQuery<Record<string, any>>({
+    queryKey: ["/api/admin/settings"],
+  });
+
+  const autoComplete = adminSettings?.autoCompleteApplications || false;
+
+  const toggleAutoComplete = async (enabled: boolean) => {
+    setIsSaving(true);
+    try {
+      await apiRequest("PUT", "/api/admin/settings", { autoCompleteApplications: enabled });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/settings"] });
+      toast({
+        title: enabled ? "Auto-Complete Enabled" : "Auto-Complete Disabled",
+        description: enabled
+          ? "Applications will be automatically completed after payment. The doctor will receive a copy."
+          : "Applications will be sent to a doctor for manual review before completion.",
+      });
+    } catch (error: any) {
+      toast({ title: "Save Failed", description: error.message, variant: "destructive" });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center gap-2">
+          <Bell className="h-5 w-5" />
+          <CardTitle>Auto-Complete Applications</CardTitle>
+        </div>
+        <CardDescription>
+          When enabled, applications are automatically approved and completed after payment —
+          no doctor review required. The patient receives their completed form immediately,
+          and the assigned doctor gets a copy for their records.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium">
+              {autoComplete ? "Auto-Complete is ON" : "Auto-Complete is OFF"}
+            </p>
+            <p className="text-xs text-muted-foreground mt-1">
+              {autoComplete
+                ? "Applications skip doctor review and complete instantly after payment."
+                : "Applications are sent to a doctor for review before completion."}
+            </p>
+          </div>
+          <Switch
+            checked={autoComplete}
+            onCheckedChange={toggleAutoComplete}
+            disabled={isSaving}
+            data-testid="switch-auto-complete"
+          />
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+```
+
+#### b. Notification Email Input
+
+```tsx
+function AdminNotificationSettings() {
+  const { toast } = useToast();
+  const [notificationEmail, setNotificationEmail] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+
+  const { data: adminSettings } = useQuery<Record<string, any>>({
+    queryKey: ["/api/admin/settings"],
+  });
+
+  useEffect(() => {
+    if (adminSettings?.notificationEmail) {
+      setNotificationEmail(adminSettings.notificationEmail);
+    }
+  }, [adminSettings]);
+
+  const saveNotificationEmail = async () => {
+    setIsSaving(true);
+    try {
+      await apiRequest("PUT", "/api/admin/settings", { notificationEmail: notificationEmail.trim() });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/settings"] });
+      toast({ title: "Notification Email Saved", description: "The admin notification email has been updated." });
+    } catch (error: any) {
+      toast({ title: "Save Failed", description: error.message, variant: "destructive" });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center gap-2">
+          <Mail className="h-5 w-5" />
+          <CardTitle>Admin Notification Email</CardTitle>
+        </div>
+        <CardDescription>
+          Set an email address that receives a copy of every approval request sent to doctors.
+          Both the doctor and this email will get the same review link with an Approve button.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex gap-3">
+          <Input
+            type="email"
+            placeholder="admin@example.com"
+            value={notificationEmail}
+            onChange={(e) => setNotificationEmail(e.target.value)}
+            data-testid="input-notification-email"
+            className="flex-1"
+          />
+          <Button onClick={saveNotificationEmail} disabled={isSaving} data-testid="button-save-notification-email">
+            {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : "Save"}
+          </Button>
+        </div>
+        {adminSettings?.notificationEmail && (
+          <p className="text-sm text-muted-foreground">
+            Currently sending notifications to: <strong>{adminSettings.notificationEmail}</strong>
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+```
+
+#### c. Render in Settings page
+
+In your SettingsPage component, add conditionally for admin+ users:
+```tsx
+{user.userLevel >= 3 && <AutoCompleteSettings />}
+{user.userLevel >= 3 && <AdminNotificationSettings />}
+```
+
+---
+
+## Part 8: Auto-Send to Doctor After Payment & Email Wiring
+
+### Overview
+
+After a successful Authorize.Net payment (or manual payment), the system automatically:
+1. Creates the application with `paid` status
+2. Picks the next doctor via state-filtered round-robin
+3. Checks the `autoCompleteApplications` admin setting
+4. **Auto-Complete ON**: Marks as `doctor_approved`, generates document, emails patient + doctor copy + admin
+5. **Auto-Complete OFF**: Creates a review token (7-day expiry), emails doctor with review link + admin notification
+
+This eliminates the need for any manual "send to doctor" step — it happens automatically on payment.
+
+### 8.1 Auto-Send Logic in Payment Charge Endpoint
+
+This logic is already covered in Part 5.2c (`POST /api/payment/charge`). The key section after the application is created:
+
+```typescript
+const adminSettings = await storage.getAdminSettings();
+const patientAppState = formData?.state || patient.state || "";
+const doctor = await storage.getNextDoctorForAssignment(patientAppState || undefined);
+
+if (doctor) {
+  const doctorUser = await storage.getUser(doctor.userId || doctor.id);
+  const protocol = process.env.NODE_ENV === "production" ? "https" : "https";
+  const host = req.get("host") || "localhost:5000";
+
+  if (adminSettings?.autoCompleteApplications) {
+    // === AUTO-COMPLETE PATH ===
+    await storage.updateApplication(application.id, {
+      status: "doctor_approved",
+      assignedReviewerId: doctor.userId || doctor.id,
+      level2ApprovedAt: new Date(),
+      level2ApprovedBy: doctor.userId || doctor.id,
+    });
+    await autoGenerateDocument(application.id, doctor.userId || doctor.id);
+    fireAutoMessageTriggers(application.id, "doctor_approved");
+
+    // Email patient (tells them to log in to download)
+    const patientContactEmail = getContactEmail(patient);
+    if (patientContactEmail) {
+      const dashboardUrl = `${protocol}://${host}/dashboard/applicant/documents`;
+      sendPatientApprovalEmail({
+        patientEmail: patientContactEmail, patientName,
+        packageName: pkg.name, applicationId: application.id, dashboardUrl,
+      }).catch(err => console.error("Payment auto-complete patient email error:", err));
+    }
+
+    // Email doctor (records copy, no action needed)
+    if (doctorUser) {
+      sendDoctorCompletionCopyEmail({
+        doctorEmail: getContactEmail(doctorUser),
+        doctorName: doctorUser.lastName || doctor.fullName || "Doctor",
+        patientName, patientEmail: getContactEmail(patient),
+        packageName: pkg.name, applicationId: application.id,
+        formData: formData || {},
+      }).catch(err => console.error("Payment auto-complete doctor copy error:", err));
+    }
+
+    // Email admin notification
+    const notificationEmail = adminSettings?.notificationEmail;
+    if (notificationEmail) {
+      sendAdminNotificationEmail({
+        adminEmail: notificationEmail,
+        doctorName: doctorUser?.lastName || doctor.fullName || "Doctor",
+        patientName, patientEmail: getContactEmail(patient),
+        packageName: pkg.name, formData: formData || {},
+        reviewUrl: `${protocol}://${host}/dashboard/admin/applications`,
+        applicationId: application.id,
+      }).catch(err => console.error("Payment auto-complete admin email error:", err));
+    }
+  } else {
+    // === DOCTOR REVIEW PATH ===
+    const token = randomBytes(32).toString("hex");
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 7);
+
+    await storage.createDoctorReviewToken({
+      applicationId: application.id,
+      doctorId: doctor.userId || doctor.id,
+      token, status: "pending", expiresAt,
+    });
+    await storage.updateApplication(application.id, {
+      status: "doctor_review",
+      assignedReviewerId: doctor.userId || doctor.id,
+    });
+
+    const reviewUrl = `${protocol}://${host}/review/${token}`;
+
+    // Email doctor with review link
+    if (doctorUser) {
+      sendDoctorApprovalEmail({
+        doctorEmail: getContactEmail(doctorUser),
+        doctorName: doctorUser.lastName || doctor.fullName || "Doctor",
+        patientName, patientEmail: getContactEmail(patient),
+        packageName: pkg.name, formData: formData || {},
+        reviewUrl, applicationId: application.id,
+      }).catch(err => console.error("Payment doctor email error:", err));
+    }
+
+    // Email admin notification (same review link)
+    const notificationEmail = adminSettings?.notificationEmail;
+    if (notificationEmail) {
+      sendAdminNotificationEmail({
+        adminEmail: notificationEmail,
+        doctorName: doctorUser?.lastName || doctor.fullName || "Doctor",
+        patientName, patientEmail: getContactEmail(patient),
+        packageName: pkg.name, formData: formData || {},
+        reviewUrl, applicationId: application.id,
+      }).catch(err => console.error("Payment admin email error:", err));
+    }
+
+    fireAutoMessageTriggers(application.id, "doctor_review");
+  }
+}
+```
+
+### 8.2 Manual Send-to-Doctor Admin Endpoint
+
+The `POST /api/admin/applications/:id/send-to-doctor` endpoint allows admins to manually (re)assign an application:
+
+```typescript
+app.post("/api/admin/applications/:id/send-to-doctor", requireAuth, requireLevel(3), async (req, res) => {
+  try {
+    const applicationId = req.params.id as string;
+    const { doctorId: manualDoctorId } = req.body;
+
+    const application = await storage.getApplication(applicationId);
+    if (!application) { res.status(404).json({ message: "Application not found" }); return; }
+
+    const appFormData = (application.formData || {}) as Record<string, any>;
+    const appPatient = application.userId ? await storage.getUser(application.userId) : null;
+    const appPatientState = appPatient?.state || appFormData.state || "";
+
+    // Pick doctor: manual selection or round-robin
+    let doctor;
+    if (manualDoctorId) {
+      doctor = await storage.getDoctorProfile(manualDoctorId);
+      if (!doctor) {
+        const allDoctors = await storage.getActiveDoctors();
+        doctor = allDoctors.find(d => d.userId === manualDoctorId);
+      }
+    } else {
+      doctor = await storage.getNextDoctorForAssignment(appPatientState || undefined);
+    }
+    if (!doctor) { res.status(400).json({ message: "No active doctors available" }); return; }
+
+    // Create review token (7-day expiry)
+    const token = randomBytes(32).toString("hex");
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 7);
+
+    await storage.createDoctorReviewToken({
+      applicationId, doctorId: doctor.userId || doctor.id,
+      token, status: "pending", expiresAt,
+    });
+    await storage.updateApplication(applicationId, {
+      status: "doctor_review",
+      assignedReviewerId: doctor.userId || doctor.id,
+    });
+
+    const patient = application.userId ? await storage.getUser(application.userId) : null;
+    const pkg = application.packageId ? await storage.getPackage(application.packageId) : null;
+    const doctorUser = await storage.getUser(doctor.userId || doctor.id);
+    const protocol = process.env.NODE_ENV === "production" ? "https" : "https";
+    const host = req.get("host") || "localhost:5000";
+    const reviewUrl = `${protocol}://${host}/review/${token}`;
+
+    // Create notifications
+    await storage.createNotification({
+      userId: req.user!.id,
+      type: "doctor_assignment",
+      title: "Application Sent to Doctor",
+      message: `Application for ${patient?.firstName || "Patient"} sent to Dr. ${doctorUser?.lastName || "Doctor"}. Review link: ${reviewUrl}`,
+      isRead: false, actionUrl: reviewUrl,
+    });
+
+    if (doctorUser) {
+      await storage.createNotification({
+        userId: doctorUser.id,
+        type: "review_assigned",
+        title: "New Patient Review Assigned",
+        message: `You have been assigned to review ${patient?.firstName || "a patient"}'s application.`,
+        isRead: false,
+      });
+    }
+
+    fireAutoMessageTriggers(applicationId, "doctor_review");
+
+    // Send emails to doctor AND admin
+    const doctorEmail = doctorUser ? getContactEmail(doctorUser) : null;
+    const patientName = patient ? `${patient.firstName} ${patient.lastName}` : "Patient";
+    const patientEmail = patient ? getContactEmail(patient) : "";
+    const packageName = pkg?.name || "Handicap Permit";
+
+    if (doctorEmail) {
+      sendDoctorApprovalEmail({
+        doctorEmail,
+        doctorName: doctorUser?.lastName || doctor.fullName || "Doctor",
+        patientName, patientEmail, packageName,
+        formData: application.formData || {},
+        reviewUrl, applicationId,
+      }).catch(err => console.error("Doctor email error:", err));
+    }
+
+    const adminSettings = await storage.getAdminSettings();
+    const notificationEmail = adminSettings?.notificationEmail;
+    if (notificationEmail) {
+      sendAdminNotificationEmail({
+        adminEmail: notificationEmail,
+        doctorName: doctorUser?.lastName || doctor.fullName || "Doctor",
+        patientName, patientEmail, packageName,
+        formData: application.formData || {},
+        reviewUrl, applicationId,
+      }).catch(err => console.error("Admin notification email error:", err));
+    }
+
+    res.json({
+      success: true, reviewUrl,
+      doctor: { id: doctor.userId || doctor.id, name: doctorUser?.lastName || doctor.fullName || "Doctor" },
+      message: "Application sent to doctor for review",
+    });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+});
+```
+
+---
+
+## Part 9: Doctor Approval → Auto-Generate Document & Email Patient
+
+### Overview
+
+When a doctor approves an application via the token-based review portal, the system:
+1. Updates the application to `doctor_approved`
+2. Auto-generates a document using the doctor's HTML template (or a default)
+3. Sends the patient an email telling them to log in and download their document
+4. Creates an in-app notification for the patient
+
+**Important**: The PDF is NOT sent in the email. The patient must log in to view/download it.
+
+### 9.1 Auto-Generate Document Function (routes.ts)
+
+Place this function near the top of `routes.ts`, before route definitions:
+
+```typescript
+async function autoGenerateDocument(applicationId: string, doctorId: string) {
+  try {
+    const app = await storage.getApplication(applicationId);
+    if (!app) return;
+
+    const doctorProfile = await storage.getDoctorProfileByUserId(doctorId);
+    const patient = app.userId ? await storage.getUser(app.userId) : null;
+    const pkg = app.packageId ? await storage.getPackage(app.packageId) : null;
+    const formData = (app.formData || {}) as Record<string, any>;
+
+    const now = new Date();
+    const dateLong = now.toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+    const dateShort = now.toLocaleDateString("en-US", { year: "numeric", month: "2-digit", day: "2-digit" });
+
+    const placeholders: Record<string, string> = {
+      doctorName: doctorProfile?.fullName || "Physician",
+      doctorLicense: doctorProfile?.licenseNumber || "",
+      doctorNPI: doctorProfile?.npiNumber || "",
+      doctorDEA: doctorProfile?.deaNumber || "",
+      doctorPhone: doctorProfile?.phone || "",
+      doctorFax: doctorProfile?.fax || "",
+      doctorAddress: doctorProfile?.address || "",
+      doctorSpecialty: doctorProfile?.specialty || "",
+      doctorState: (doctorProfile as any)?.state || "",
+      patientName: patient ? `${patient.firstName} ${patient.lastName}` : "Patient",
+      patientFirstName: patient?.firstName || "",
+      patientLastName: patient?.lastName || "",
+      patientDOB: patient?.dateOfBirth || formData.dateOfBirth || "",
+      patientPhone: patient?.phone || formData.phone || "",
+      patientEmail: patient?.email || formData.email || "",
+      patientAddress: patient?.address || formData.address || "",
+      patientCity: patient?.city || formData.city || "",
+      patientState: patient?.state || formData.state || "",
+      patientZipCode: patient?.zipCode || formData.zipCode || "",
+      patientSSN: formData.ssn || patient?.ssn || "",
+      patientDriverLicense: formData.driverLicenseNumber || patient?.driverLicenseNumber || "",
+      patientMedicalCondition: formData.medicalCondition || patient?.medicalCondition || "",
+      reason: formData.reason || "",
+      packageName: pkg?.name || "Service Document",
+      date: dateLong,
+      dateShort: dateShort,
+    };
+
+    let generatedHtml = "";
+    const template = (doctorProfile as any)?.formTemplate;
+    if (template && template.trim().length > 0) {
+      generatedHtml = renderTemplate(template, placeholders);
+    } else {
+      generatedHtml = `
+        <div style="font-family:Arial,sans-serif;max-width:800px;margin:0 auto;padding:40px;">
+          <h1 style="text-align:center;color:#1e40af;">Medical Recommendation</h1>
+          <p style="text-align:center;color:#6b7280;">${dateLong}</p>
+          <hr style="margin:24px 0;border-color:#e5e7eb;" />
+          <h3>Patient Information</h3>
+          <p><strong>Name:</strong> ${placeholders.patientName}</p>
+          <p><strong>Date of Birth:</strong> ${placeholders.patientDOB}</p>
+          <p><strong>Address:</strong> ${placeholders.patientAddress}, ${placeholders.patientCity}, ${placeholders.patientState} ${placeholders.patientZipCode}</p>
+          <p><strong>Phone:</strong> ${placeholders.patientPhone}</p>
+          ${placeholders.patientMedicalCondition ? `<p><strong>Medical Condition:</strong> ${placeholders.patientMedicalCondition}</p>` : ""}
+          ${placeholders.reason ? `<p><strong>Reason:</strong> ${placeholders.reason}</p>` : ""}
+          <hr style="margin:24px 0;border-color:#e5e7eb;" />
+          <h3>Service: ${placeholders.packageName}</h3>
+          <p>This document certifies that the above-named patient has been evaluated and qualifies for the requested service.</p>
+          <hr style="margin:24px 0;border-color:#e5e7eb;" />
+          <h3>Certifying Physician</h3>
+          <p><strong>Name:</strong> ${placeholders.doctorName}</p>
+          <p><strong>License:</strong> ${placeholders.doctorLicense}</p>
+          <p><strong>NPI:</strong> ${placeholders.doctorNPI}</p>
+          ${placeholders.doctorDEA ? `<p><strong>DEA:</strong> ${placeholders.doctorDEA}</p>` : ""}
+          ${placeholders.doctorSpecialty ? `<p><strong>Specialty:</strong> ${placeholders.doctorSpecialty}</p>` : ""}
+          ${placeholders.doctorPhone ? `<p><strong>Phone:</strong> ${placeholders.doctorPhone}</p>` : ""}
+          ${placeholders.doctorAddress ? `<p><strong>Address:</strong> ${placeholders.doctorAddress}</p>` : ""}
+        </div>
+      `;
+    }
+
+    const docContent = {
+      applicationId,
+      packageName: placeholders.packageName,
+      patientName: placeholders.patientName,
+      patientEmail: placeholders.patientEmail,
+      doctorName: placeholders.doctorName,
+      doctorLicense: placeholders.doctorLicense,
+      doctorNPI: placeholders.doctorNPI,
+      doctorDEA: placeholders.doctorDEA,
+      generatedAt: now.toISOString(),
+      status: "auto_generated",
+      notes: app.level2Notes || app.level3Notes || "",
+      generatedHtml,
+      placeholders,
+    };
+
+    const document = await storage.createDocument({
+      applicationId,
+      userId: app.userId || "",
+      name: `${placeholders.packageName} - Auto Generated`,
+      type: "auto_generated",
+      status: "completed",
+      fileUrl: "",
+      metadata: docContent,
+    } as any);
+
+    console.log(`Document auto-generated for application ${applicationId}`);
+    return document;
+  } catch (error) {
+    console.error("Error auto-generating document:", error);
+  }
+}
+
+function renderTemplate(template: string, placeholders: Record<string, string>): string {
+  return template.replace(/\{\{(\w+)\}\}/g, (_, key) => placeholders[key] || "");
+}
+```
+
+### 9.2 Doctor Approval Decision Endpoint (routes.ts)
+
+The token-based review endpoint that triggers document generation and patient email:
+
+```typescript
+app.post("/api/review/:token/decision", async (req, res) => {
+  try {
+    const { decision, notes } = req.body;
+    if (!decision || !["approved", "denied"].includes(decision)) {
+      res.status(400).json({ message: "Decision must be 'approved' or 'denied'" });
+      return;
+    }
+
+    const tokenRecord = await storage.getDoctorReviewTokenByToken(req.params.token);
+    if (!tokenRecord) { res.status(404).json({ message: "Review link not found" }); return; }
+    if (tokenRecord.status !== "pending") { res.status(410).json({ message: "This review has already been completed" }); return; }
+    if (new Date() > new Date(tokenRecord.expiresAt)) {
+      await storage.updateDoctorReviewToken(tokenRecord.id, { status: "expired" } as any);
+      res.status(410).json({ message: "This review link has expired" });
+      return;
+    }
+
+    await storage.updateDoctorReviewToken(tokenRecord.id, {
+      status: decision, usedAt: new Date(), doctorNotes: notes || null,
+    } as any);
+
+    const application = await storage.getApplication(tokenRecord.applicationId);
+
+    if (decision === "approved") {
+      await storage.updateApplication(tokenRecord.applicationId, {
+        status: "doctor_approved",
+        level2Notes: notes,
+        level2ApprovedAt: new Date(),
+        level2ApprovedBy: tokenRecord.doctorId,
+        assignedReviewerId: tokenRecord.doctorId,
+      });
+
+      // Auto-generate the document
+      await autoGenerateDocument(tokenRecord.applicationId, tokenRecord.doctorId);
+      fireAutoMessageTriggers(tokenRecord.applicationId, "doctor_approved");
+
+      // Notify and email the patient
+      if (application?.userId) {
+        await storage.createNotification({
+          userId: application.userId,
+          type: "application_approved",
+          title: "Application Approved",
+          message: "Your application has been approved by the reviewing doctor. Your documents are being prepared.",
+          isRead: false,
+        });
+
+        const patient = await storage.getUser(application.userId);
+        const pkg = application.packageId ? await storage.getPackage(application.packageId) : null;
+        if (patient) {
+          const protocol = process.env.NODE_ENV === "production" ? "https" : "https";
+          const host = req.get("host") || "localhost:5000";
+          const dashboardUrl = `${protocol}://${host}/dashboard/applicant/documents`;
+          sendPatientApprovalEmail({
+            patientEmail: getContactEmail(patient),
+            patientName: `${patient.firstName} ${patient.lastName}`,
+            packageName: pkg?.name || "Handicap Permit",
+            applicationId: tokenRecord.applicationId,
+            dashboardUrl,
+          }).catch(err => console.error("Patient approval email error:", err));
+        }
+      }
+    } else {
+      // Denied
+      await storage.updateApplication(tokenRecord.applicationId, {
+        status: "doctor_denied",
+        level2Notes: notes,
+        rejectedAt: new Date(),
+        rejectedBy: tokenRecord.doctorId,
+        rejectionReason: notes,
+      });
+      fireAutoMessageTriggers(tokenRecord.applicationId, "doctor_denied");
+
+      if (application?.userId) {
+        await storage.createNotification({
+          userId: application.userId,
+          type: "application_denied",
+          title: "Application Not Approved",
+          message: notes ? `Your application was not approved. Reason: ${notes}` : "Your application was not approved at this time.",
+          isRead: false,
+        });
+      }
+    }
+
+    await storage.createActivityLog({
+      userId: tokenRecord.doctorId,
+      action: `doctor_${decision}`,
+      entityType: "application",
+      entityId: tokenRecord.applicationId,
+      details: { notes, tokenId: tokenRecord.id } as any,
+    });
+
+    res.json({ message: `Application ${decision} successfully`, decision });
+  } catch (error: any) {
+    res.status(500).json({ message: error.message });
+  }
+});
+```
+
+---
+
+## Part 10: Radio Button Positioning Fix for Oklahoma PDF
+
+### Overview
+
+The Oklahoma disability form PDF has checkboxes for conditions A-H (radio IDs 7-14), duration options (15-16), and radio 6. These placeholder tokens are scanned from the PDF text layer, but the text coordinates don't perfectly align with the visual checkbox squares. Radio buttons 6-16 need to shift **+1px right** and **-5px up** to align with the actual boxes.
+
+### 10.1 GizmoForm.tsx: Radio Position Offset
+
+In `extractPlaceholdersFromPdf`, update both radio detection paths to apply per-option offsets.
+
+**Path 1 — Regex-based detection** (the `radioRegex` loop):
+
+```typescript
+if (anchorItem) {
+  const num = parseInt(option, 10);
+  const radioOffsetX = num >= 6 && num <= 16 ? 1 : 0;
+  const radioOffsetY = num >= 6 && num <= 16 ? -5 : 0;
+  const x = anchorItem.transform[4] + offsets.x + radioOffsetX;
+  const y = viewport.height - anchorItem.transform[5] + offsets.y + radioOffsetY;
+  const fontSize = anchorItem.height || 12;
+  // ... rest of radio push
+}
+```
+
+**Path 2 — Item-based detection** (the `addRadioFromItem` helper):
+
+```typescript
+const addRadioFromItem = (option: string, itemX: number, itemY: number, itemHeight: number) => {
+  if (seenRadioOptions.has(option)) return;
+  seenRadioOptions.add(option);
+
+  const group = getRadioGroup(option);
+  const num = parseInt(option, 10);
+  const radioOffsetX = num >= 6 && num <= 16 ? 1 : 0;
+  const radioOffsetY = num >= 6 && num <= 16 ? -5 : 0;
+  const x = itemX + offsets.x + radioOffsetX;
+  const y = viewport.height - itemY + offsets.y + radioOffsetY;
+  const fontSize = itemHeight || 12;
+  // ... rest of radio push
+};
+```
+
+Both paths must have the same offset logic. The offsets are applied after the base `offsets.x/y` (which come from `DOCTOR_FORM_OFFSETS`) so they stack correctly.
+
+**Tuning tip**: If other state PDFs have different alignment issues, you can adjust the conditions (`num >= 6 && num <= 16`) or add per-group offsets instead.
+
+---
+
 ## Complete Data Flow Summary
 
 1. **Admin** creates a package with radio fields: each option has a radio ID number and a statement
-2. **Patient** opens the application wizard → draft is loaded from Firestore if they have one
-3. **Patient** selects a package, answers radio questions → each answer saves the radio ID (e.g., `"7"`)
-4. **Patient** progress auto-saves to Firestore every second (debounced)
-5. **Patient** can close browser and come back — everything is restored
-6. **Patient submits** (or **Admin does manual payment**) → application created with all answers in `formData`
-7. **Doctor reviews** and approves via token link → document auto-generated
-8. **Patient views PDF** on dashboard → `GET /api/forms/data/:applicationId` runs:
-   - Resolves PDF URL: `doctorProfile.stateForms[patientState]` → `doctorProfile.gizmoFormUrl` fallback
-   - Collects `selectedRadioIds` from fields with `radioOptions` definitions
-   - Returns `selectedRadioIds` array in response
-9. **GizmoForm** scans the PDF for `{radio_id_N}` placeholders:
-   - First checks if `N` is in the `selectedRadioIds` set (direct 1-to-1 match)
-   - Falls back to `RADIO_AUTO_FILL` value map lookup (legacy support)
-   - Checks the matching radio button on the PDF
+2. **Admin** configures notification email and auto-complete toggle in Settings
+3. **Patient** opens the application wizard → draft is loaded from Firestore if they have one
+4. **Patient** selects a package, answers radio questions → each answer saves the radio ID (e.g., `"7"`)
+5. **Patient** progress auto-saves to Firestore every second (debounced)
+6. **Patient** can close browser and come back — everything is restored
+7. **Patient** enters credit card on Step 3 → Accept.js tokenizes client-side → server charges via Authorize.Net
+8. **On successful payment**: application created with `paid` status, draft cleared
+9. **Auto-assignment**: system picks next doctor via state-filtered round-robin
+10. **If auto-complete ON**: application marked `doctor_approved`, document auto-generated, patient emailed to download, doctor gets records copy
+11. **If auto-complete OFF**: review token created (7-day expiry), doctor emailed with "Review & Approve" link, admin notification email sent with same link
+12. **Doctor clicks link** → reviews application in portal → clicks Approve/Deny
+13. **On approval**: `autoGenerateDocument` runs, patient emailed to sign in and download, in-app notification created
+14. **Patient views PDF** on dashboard → `GET /api/forms/data/:applicationId` runs:
+    - Resolves PDF URL: `doctorProfile.stateForms[patientState]` → `doctorProfile.gizmoFormUrl` fallback
+    - Collects `selectedRadioIds` from fields with `radioOptions` definitions
+    - Returns `selectedRadioIds` array in response
+15. **GizmoForm** scans the PDF for `{radio_id_N}` placeholders:
+    - Applies position offsets for radio IDs 6-16 (+1px right, -5px up)
+    - First checks if `N` is in the `selectedRadioIds` set (direct 1-to-1 match)
+    - Falls back to `RADIO_AUTO_FILL` value map lookup (legacy support)
+    - Checks the matching radio button on the PDF
+16. **Patient downloads/prints** the auto-filled PDF from their dashboard
 
 ---
 
@@ -1491,9 +2554,26 @@ awaiting_payment: { variant: "outline", label: "Payment Pending" },
 
 | File | Changes |
 |------|---------|
-| `server/routes.ts` | Draft form endpoints, selectedRadioIds collection, manual payment draft integration, per-doctor state form resolution |
-| `server/storage.ts` | Doctor profile stateForms field in create/update |
+| `server/email.ts` | **New file** — SendGrid email service with 4 functions: sendDoctorApprovalEmail, sendAdminNotificationEmail, sendDoctorCompletionCopyEmail, sendPatientApprovalEmail |
+| `server/authorizenet.ts` | **New file** — Authorize.Net Accept.js integration: chargeCard, isAuthorizeNetConfigured, getAcceptJsUrl, getApiLoginId |
+| `server/routes.ts` | Email imports, getContactEmail helper, autoGenerateDocument function, payment config/charge endpoints, admin settings endpoints, send-to-doctor with email wiring, doctor review decision with patient email, admin process-payment endpoint, draft form endpoints, selectedRadioIds collection, manual payment draft integration, per-doctor state form resolution |
+| `server/storage.ts` | Doctor profile stateForms field in create/update, getAdminSettings/updateAdminSettings methods |
 | `client/src/pages/dashboard/admin/PackagesManagement.tsx` | radioOptions schema, radio ID + statement editor UI |
-| `client/src/pages/dashboard/applicant/NewApplication.tsx` | Draft load/save, radioOptions rendering, draft clear on submit |
-| `client/src/components/GizmoForm.tsx` | selectedRadioIds interface field, Set-based direct matching before RADIO_AUTO_FILL fallback |
+| `client/src/pages/dashboard/applicant/NewApplication.tsx` | 3-step wizard (Select Permit → Info → Review & Pay), Accept.js loading, payment processing, draft load/save, radioOptions rendering, draft clear on submit |
+| `client/src/pages/dashboard/shared/SettingsPage.tsx` | AutoCompleteSettings toggle, AdminNotificationSettings email input (admin+ only) |
+| `client/src/pages/dashboard/shared/ApplicationsListPage.tsx` | Awaiting Payment stat card/filter, Process Payment button for admin |
+| `client/src/components/GizmoForm.tsx` | selectedRadioIds interface field, Set-based direct matching before RADIO_AUTO_FILL fallback, radio position offsets for IDs 6-16 |
 | `client/src/components/shared/UserProfileModal.tsx` | stateForms UI (green cards, amber upload card, state dropdown) |
+
+## Environment Variables Required
+
+| Variable | Description |
+|----------|-------------|
+| `SENDGRID_API_KEY` | SendGrid API key for sending transactional emails |
+| `SENDGRID_FROM_EMAIL` | Verified sender email (defaults to `noreply@parkingrx.com`) |
+| `AUTHORIZENET_API_LOGIN_ID` | Authorize.Net API Login ID |
+| `AUTHORIZENET_TRANSACTION_KEY` | Authorize.Net Transaction Key |
+| `AUTHORIZENET_CLIENT_KEY` | Authorize.Net Public Client Key (for Accept.js) |
+| `AUTHORIZENET_SANDBOX` | Set to `"true"` for test mode, omit for production |
+| `FIREBASE_SERVICE_ACCOUNT_KEY` | Firebase Admin SDK service account JSON |
+| `FIREBASE_STORAGE_BUCKET` | Firebase Storage bucket name |
