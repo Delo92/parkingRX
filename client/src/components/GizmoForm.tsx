@@ -7,8 +7,9 @@ import { Loader2, Download, Printer, ChevronLeft, ChevronRight, ZoomIn, ZoomOut,
 import { useToast } from "@/hooks/use-toast";
 
 import * as pdfjsLib from "pdfjs-dist";
+import pdfjsWorker from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.mjs`;
+pdfjsLib.GlobalWorkerOptions.workerSrc = pdfjsWorker;
 
 export interface GizmoFormData {
   success: boolean;
