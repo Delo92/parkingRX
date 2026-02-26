@@ -111,10 +111,7 @@ export function UserProfileModal({ user: selectedUser, onClose, canEditLevel = t
   const [doctorProfileData, setDoctorProfileData] = useState<Record<string, any>>({});
   const [pdfUploading, setPdfUploading] = useState(false);
   const [showGizmoPreview, setShowGizmoPreview] = useState(false);
-  const [showManualPayment, setShowManualPayment] = useState(false);
-  const [manualPaymentPackageId, setManualPaymentPackageId] = useState("");
-  const [manualPaymentReason, setManualPaymentReason] = useState("");
-  const [manualPaymentLoading, setManualPaymentLoading] = useState(false);
+
 
   const isUserDoctor = selectedUser?.userLevel === 2;
 
