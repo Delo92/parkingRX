@@ -41,7 +41,54 @@ interface PatientDocumentEmailData {
   dashboardUrl: string;
 }
 
-function formatFormData(formData: Record<string, any>): string {
+const SUMMARY_KEYS = [
+  "disabilityCondition",
+  "disability_condition",
+  "medicalCondition",
+  "medical_condition",
+  "state",
+  "duration",
+  "duration_requested",
+  "durationRequested",
+  "permitType",
+  "permit_type",
+  "reason",
+];
+
+function formatFormDataSummary(formData: Record<string, any>): string {
+  if (!formData || Object.keys(formData).length === 0) return "";
+
+  const lowerMap = new Map<string, { key: string; value: any }>();
+  for (const [key, value] of Object.entries(formData)) {
+    lowerMap.set(key.toLowerCase(), { key, value });
+  }
+
+  const rows: string[] = [];
+  const seen = new Set<string>();
+
+  for (const sk of SUMMARY_KEYS) {
+    const entry = lowerMap.get(sk.toLowerCase());
+    if (entry && entry.value != null && String(entry.value).trim() !== "" && !seen.has(sk.toLowerCase())) {
+      seen.add(sk.toLowerCase());
+      const label = entry.key
+        .replace(/([A-Z])/g, " $1")
+        .replace(/_/g, " ")
+        .replace(/^./, (s: string) => s.toUpperCase())
+        .trim();
+      rows.push(
+        `<tr style="border-bottom:1px solid #e5e7eb;">
+          <td style="padding:8px 12px;font-weight:600;color:#374151;white-space:nowrap;">${label}</td>
+          <td style="padding:8px 12px;color:#4b5563;">${String(entry.value)}</td>
+        </tr>`
+      );
+    }
+  }
+
+  if (rows.length === 0) return "";
+  return `<table style="width:100%;border-collapse:collapse;margin:16px 0;">${rows.join("")}</table>`;
+}
+
+function formatFormDataFull(formData: Record<string, any>): string {
   if (!formData || Object.keys(formData).length === 0) return "<p>No additional details provided.</p>";
   
   let html = '<table style="width:100%;border-collapse:collapse;margin:16px 0;">';
@@ -142,10 +189,13 @@ export async function sendAdminNotificationEmail(data: AdminNotificationEmailDat
           <p style="margin:4px 0;color:#4b5563;"><strong>Assigned Doctor:</strong> Dr. ${data.doctorName}</p>
           <p style="margin:4px 0;color:#4b5563;"><strong>Application ID:</strong> ${data.applicationId}</p>
         </div>
-        <div style="margin:20px 0;">
+        ${(() => {
+          const summary = formatFormDataSummary(data.formData);
+          return summary ? `<div style="margin:20px 0;">
           <h3 style="color:#7c3aed;margin:0 0 12px;font-size:16px;">Application Details</h3>
-          ${formatFormData(data.formData)}
-        </div>
+          ${summary}
+        </div>` : "";
+        })()}
         <div style="text-align:center;margin:32px 0;">
           <a href="${data.reviewUrl}" style="display:inline-block;background:#16a34a;color:#ffffff;padding:14px 40px;text-decoration:none;border-radius:8px;font-size:18px;font-weight:600;">
             Review &amp; Approve
@@ -214,10 +264,13 @@ export async function sendDoctorCompletionCopyEmail(data: DoctorCompletionCopyDa
           <p style="margin:4px 0;color:#4b5563;"><strong>Package:</strong> ${data.packageName}</p>
           <p style="margin:4px 0;color:#4b5563;"><strong>Application ID:</strong> ${data.applicationId}</p>
         </div>
-        <div style="margin:20px 0;">
+        ${(() => {
+          const summary = formatFormDataSummary(data.formData);
+          return summary ? `<div style="margin:20px 0;">
           <h3 style="color:#0d9488;margin:0 0 12px;font-size:16px;">Application Details</h3>
-          ${formatFormData(data.formData)}
-        </div>
+          ${summary}
+        </div>` : "";
+        })()}
         <p style="color:#6b7280;font-size:13px;text-align:center;">
           No action is required from you. This is a copy for your records.
         </p>
