@@ -2041,6 +2041,44 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/admin/test-review-email", requireAuth, requireLevel(3), async (req, res) => {
+    try {
+      const { applicationId, recipientEmail } = req.body;
+      if (!applicationId || !recipientEmail) {
+        res.status(400).json({ message: "applicationId and recipientEmail are required" });
+        return;
+      }
+      const application = await storage.getApplication(applicationId);
+      if (!application) { res.status(404).json({ message: "Application not found" }); return; }
+      const patient = application.userId ? await storage.getUser(application.userId) : null;
+      const pkg = application.packageId ? await storage.getPackage(application.packageId) : null;
+      const protocol = "https";
+      const host = req.get("host") || "localhost:5000";
+      const token = randomBytes(32).toString("hex");
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 7);
+      let doctorProfile = application.assignedReviewerId ? await storage.getDoctorProfileByUserId(application.assignedReviewerId) : null;
+      let doctorUser = application.assignedReviewerId ? await storage.getUser(application.assignedReviewerId) : null;
+      await storage.createDoctorReviewToken({ applicationId, doctorId: application.assignedReviewerId || req.user!.id, token, status: "pending", expiresAt });
+      const reviewUrl = `${protocol}://${host}/review/${token}`;
+      const patientName = patient ? `${patient.firstName} ${patient.lastName}` : "Test Patient";
+      await sendDoctorApprovalEmail({
+        doctorEmail: recipientEmail,
+        doctorName: doctorUser?.lastName || doctorProfile?.fullName || "Doctor",
+        patientName,
+        patientEmail: patient ? getContactEmail(patient) : "patient@test.com",
+        packageName: pkg?.name || "Handicap Permit",
+        formData: (application.formData || {}) as Record<string, any>,
+        reviewUrl,
+        applicationId,
+      });
+      res.json({ message: `Test review email sent to ${recipientEmail}`, reviewUrl });
+    } catch (error: any) {
+      console.error("Test email error:", error);
+      res.status(500).json({ message: error.message });
+    }
+  });
+
   app.post("/api/admin/applications/:id/send-to-doctor", requireAuth, requireLevel(3), async (req, res) => {
     try {
       const applicationId = req.params.id as string;
