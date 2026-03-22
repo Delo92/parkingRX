@@ -42,6 +42,7 @@ import SharedCommissionsPage from "@/pages/dashboard/shared/CommissionsPage";
 import SharedReferralsPage from "@/pages/dashboard/shared/ReferralsPage";
 import PlaceholderPage from "@/pages/dashboard/placeholders/PlaceholderPage";
 import DiagnosticsPage from "@/pages/dashboard/admin/DiagnosticsPage";
+import SystemSettingsPage from "@/pages/dashboard/admin/SystemSettingsPage";
 import { useGATracking } from "@/hooks/use-ga-tracking";
 
 function PageLoader() {
@@ -217,6 +218,11 @@ function App() {
                       <DiagnosticsPage />
                     </ProtectedRoute>
                   </Route>
+                  <Route path="/dashboard/admin/system">
+                    <ProtectedRoute minLevel={3}>
+                      <SystemSettingsPage />
+                    </ProtectedRoute>
+                  </Route>
                   <Route path="/dashboard/admin/settings">
                     <ProtectedRoute minLevel={3}>
                       <SharedSettingsPage />
@@ -272,6 +278,11 @@ function App() {
                   <Route path="/dashboard/owner/diagnostics">
                     <ProtectedRoute minLevel={4}>
                       <DiagnosticsPage />
+                    </ProtectedRoute>
+                  </Route>
+                  <Route path="/dashboard/owner/system">
+                    <ProtectedRoute minLevel={4}>
+                      <SystemSettingsPage />
                     </ProtectedRoute>
                   </Route>
                   <Route path="/dashboard/owner">

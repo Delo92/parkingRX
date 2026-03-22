@@ -36,6 +36,7 @@ import {
   Stethoscope,
   MapPin,
   Activity,
+  SlidersHorizontal,
 } from "lucide-react";
 
 interface NavItem {
@@ -90,6 +91,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           { title: "Analytics", href: "/dashboard/admin/analytics", icon: BarChart3 },
           { title: "Diagnostics", href: "/dashboard/admin/diagnostics", icon: Activity },
           { title: "Messages", href: "/dashboard/admin/messages", icon: MessageSquare },
+          { title: "System", href: "/dashboard/admin/system", icon: SlidersHorizontal },
           { title: "Settings", href: "/dashboard/admin/settings", icon: Settings },
         ];
       case 4: // Owner
@@ -103,6 +105,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           { title: "Analytics", href: "/dashboard/owner/analytics", icon: BarChart3 },
           { title: "Diagnostics", href: "/dashboard/owner/diagnostics", icon: Activity },
           { title: "Site Settings", href: "/dashboard/owner/site-settings", icon: Building2 },
+          { title: "System", href: "/dashboard/owner/system", icon: SlidersHorizontal },
           { title: "My Settings", href: "/dashboard/owner/settings", icon: Settings },
         ];
       default:

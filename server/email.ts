@@ -131,7 +131,7 @@ export async function sendDoctorApprovalEmail(data: DoctorApprovalEmailData): Pr
         </div>
         <div style="margin:20px 0;">
           <h3 style="color:#1e40af;margin:0 0 12px;font-size:16px;">Application Details</h3>
-          ${formatFormData(data.formData)}
+          ${formatFormDataFull(data.formData)}
         </div>
         <div style="text-align:center;margin:32px 0;">
           <a href="${data.reviewUrl}" style="display:inline-block;background:#16a34a;color:#ffffff;padding:14px 40px;text-decoration:none;border-radius:8px;font-size:18px;font-weight:600;">

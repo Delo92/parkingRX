@@ -65,11 +65,11 @@ export default function Home() {
   ];
 
   const defaultDeptImages = [
-    "https://storage.googleapis.com/paw-credentials.firebasestorage.app/defaults/departments-1.jpg",
-    "https://storage.googleapis.com/paw-credentials.firebasestorage.app/defaults/departments-2.jpg",
-    "https://storage.googleapis.com/paw-credentials.firebasestorage.app/defaults/departments-3.jpg",
-    "https://storage.googleapis.com/paw-credentials.firebasestorage.app/defaults/departments-4.jpg",
-    "https://storage.googleapis.com/paw-credentials.firebasestorage.app/defaults/departments-5.jpg",
+    "/images/parking/dept-1.jpg",
+    "/images/parking/dept-2.jpg",
+    "/images/parking/dept-3.jpg",
+    "/images/parking/dept-4.jpg",
+    "/images/parking/dept-5.jpg",
   ];
   const deptMedia = config.departmentMediaUrls || [];
 
@@ -91,11 +91,11 @@ export default function Home() {
   ];
 
   const defaultTestimonialImages = [
-    "https://storage.googleapis.com/paw-credentials.firebasestorage.app/defaults/testimonials/testimonials-1.jpg",
-    "https://storage.googleapis.com/paw-credentials.firebasestorage.app/defaults/testimonials/testimonials-2.jpg",
-    "https://storage.googleapis.com/paw-credentials.firebasestorage.app/defaults/testimonials/testimonials-3.jpg",
-    "https://storage.googleapis.com/paw-credentials.firebasestorage.app/defaults/testimonials/testimonials-4.jpg",
-    "https://storage.googleapis.com/paw-credentials.firebasestorage.app/defaults/testimonials/testimonials-5.jpg",
+    "/images/parking/testimonial-1.jpg",
+    "/images/parking/testimonial-2.jpg",
+    "/images/parking/testimonial-3.jpg",
+    "/images/parking/testimonial-4.jpg",
+    "/images/parking/testimonial-5.jpg",
   ];
   const testimonialMedia = config.testimonialMediaUrls || [];
 
@@ -108,14 +108,14 @@ export default function Home() {
   ];
 
   const defaultGalleryImages = [
-    "https://storage.googleapis.com/paw-credentials.firebasestorage.app/defaults/gallery/gallery-1.jpg",
-    "https://storage.googleapis.com/paw-credentials.firebasestorage.app/defaults/gallery/gallery-2.jpg",
-    "https://storage.googleapis.com/paw-credentials.firebasestorage.app/defaults/gallery/gallery-3.jpg",
-    "https://storage.googleapis.com/paw-credentials.firebasestorage.app/defaults/gallery/gallery-4.jpg",
-    "https://storage.googleapis.com/paw-credentials.firebasestorage.app/defaults/gallery/gallery-5.jpg",
-    "https://storage.googleapis.com/paw-credentials.firebasestorage.app/defaults/gallery/gallery-6.jpg",
-    "https://storage.googleapis.com/paw-credentials.firebasestorage.app/defaults/gallery/gallery-7.jpg",
-    "https://storage.googleapis.com/paw-credentials.firebasestorage.app/defaults/gallery/gallery-8.jpg",
+    "/images/parking/gallery-1.jpg",
+    "/images/parking/gallery-2.jpg",
+    "/images/parking/gallery-3.jpg",
+    "/images/parking/gallery-4.jpg",
+    "/images/parking/gallery-5.jpg",
+    "/images/parking/gallery-6.jpg",
+    "/images/parking/gallery-7.jpg",
+    "/images/parking/gallery-8.jpg",
   ];
   const galleryImages = config.galleryImages && config.galleryImages.length > 0
     ? config.galleryImages
@@ -127,7 +127,7 @@ export default function Home() {
       <section className="relative min-h-[85vh] flex items-center">
         <MediaRenderer
           url={heroMediaUrl || ""}
-          fallbackUrl="https://storage.googleapis.com/paw-credentials.firebasestorage.app/defaults/hero-bg.jpg"
+          fallbackUrl="/images/parking/hero.jpg"
           alt=""
           overlay
           data-testid="media-hero-background"
@@ -192,7 +192,7 @@ export default function Home() {
             <AnimateOnScroll animation="fade-right">
               <div className="relative">
                 <MediaRenderer
-                  url={config.aboutMediaUrl || "https://storage.googleapis.com/paw-credentials.firebasestorage.app/defaults/about.jpg"}
+                  url={config.aboutMediaUrl || "/images/parking/about.jpg"}
                   alt="About our service"
                   className="rounded-md w-full shadow-lg"
                   data-testid="img-about"
@@ -294,7 +294,7 @@ export default function Home() {
       {/* CTA / Order Section */}
       <section className="relative py-20 md:py-24 overflow-hidden">
         <MediaRenderer
-          url={config.ctaMediaUrl || "https://storage.googleapis.com/paw-credentials.firebasestorage.app/defaults/hero-bg.jpg"}
+          url={config.ctaMediaUrl || "/images/parking/cta.jpg"}
           alt=""
           overlay
           data-testid="media-cta-bg"
@@ -524,7 +524,7 @@ export default function Home() {
       {/* Contact / Final CTA Section */}
       <section id="contact" className="relative py-20 md:py-24 overflow-hidden">
         <MediaRenderer
-          url={config.contactMediaUrl || "https://storage.googleapis.com/paw-credentials.firebasestorage.app/defaults/departments-3.jpg"}
+          url={config.contactMediaUrl || "/images/parking/contact.jpg"}
           alt=""
           overlay
           data-testid="media-contact-bg"
