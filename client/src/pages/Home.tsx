@@ -65,11 +65,11 @@ export default function Home() {
   ];
 
   const defaultDeptImages = [
-    "/images/parking/dept-1.jpg",
-    "/images/parking/dept-2.jpg",
-    "/images/parking/dept-3.jpg",
-    "/images/parking/dept-4.jpg",
-    "/images/parking/dept-5.jpg",
+    "/images/parking/dept-1.png",
+    "/images/parking/dept-2.png",
+    "/images/parking/dept-3.png",
+    "/images/parking/dept-4.png",
+    "/images/parking/dept-5.png",
   ];
   const deptMedia = config.departmentMediaUrls || [];
 
@@ -112,10 +112,10 @@ export default function Home() {
     "/images/parking/gallery-2.jpg",
     "/images/parking/gallery-3.jpg",
     "/images/parking/gallery-4.jpg",
-    "/images/parking/gallery-5.jpg",
-    "/images/parking/gallery-6.jpg",
-    "/images/parking/gallery-7.jpg",
-    "/images/parking/gallery-8.jpg",
+    "/images/parking/gallery-5.png",
+    "/images/parking/gallery-6.png",
+    "/images/parking/gallery-7.png",
+    "/images/parking/gallery-8.png",
   ];
   const galleryImages = config.galleryImages && config.galleryImages.length > 0
     ? config.galleryImages
@@ -127,7 +127,7 @@ export default function Home() {
       <section className="relative min-h-[85vh] flex items-center">
         <MediaRenderer
           url={heroMediaUrl || ""}
-          fallbackUrl="/images/parking/hero.jpg"
+          fallbackUrl="/images/parking/hero.png"
           alt=""
           overlay
           data-testid="media-hero-background"
@@ -192,7 +192,7 @@ export default function Home() {
             <AnimateOnScroll animation="fade-right">
               <div className="relative">
                 <MediaRenderer
-                  url={config.aboutMediaUrl || "/images/parking/about.jpg"}
+                  url={config.aboutMediaUrl || "/images/parking/about.png"}
                   alt="About our service"
                   className="rounded-md w-full shadow-lg"
                   data-testid="img-about"

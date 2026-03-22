@@ -611,7 +611,7 @@ export default function SiteSettings() {
                                 </FormDescription>
                                 <FormMessage />
                               </div>
-                              <MediaPreview url={val || "/images/parking/hero.jpg"} data-testid="preview-hero-media" />
+                              <MediaPreview url={val || "/images/parking/hero.png"} data-testid="preview-hero-media" />
                             </div>
                           </FormItem>
                         );
@@ -883,7 +883,7 @@ export default function SiteSettings() {
                                   </FormDescription>
                                   <FormMessage />
                                 </div>
-                                <MediaPreview url={val || "/images/parking/about.jpg"} data-testid="preview-about-media" />
+                                <MediaPreview url={val || "/images/parking/about.png"} data-testid="preview-about-media" />
                               </div>
                             </FormItem>
                           );
@@ -913,7 +913,7 @@ export default function SiteSettings() {
                                   </FormDescription>
                                   <FormMessage />
                                 </div>
-                                <MediaPreview url={val || "/images/parking/cta.jpg"} data-testid="preview-cta-media" />
+                                <MediaPreview url={val || "/images/parking/hero.png"} data-testid="preview-cta-media" />
                               </div>
                             </FormItem>
                           );
@@ -999,7 +999,7 @@ export default function SiteSettings() {
                                 <Trash2 className="mr-1 h-3 w-3" /> Clear
                               </Button>
                             </div>
-                            <MediaPreview url={val || `/images/parking/dept-${index + 1}.jpg`} className="aspect-[4/3]" data-testid={`preview-dept-media-${index}`} />
+                            <MediaPreview url={val || `/images/parking/dept-${index + 1}.png`} className="aspect-[4/3]" data-testid={`preview-dept-media-${index}`} />
                           </div>
                         );
                       })}
