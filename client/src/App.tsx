@@ -41,6 +41,8 @@ import SharedAnalyticsPage from "@/pages/dashboard/shared/AnalyticsPage";
 import SharedCommissionsPage from "@/pages/dashboard/shared/CommissionsPage";
 import SharedReferralsPage from "@/pages/dashboard/shared/ReferralsPage";
 import PlaceholderPage from "@/pages/dashboard/placeholders/PlaceholderPage";
+import DiagnosticsPage from "@/pages/dashboard/admin/DiagnosticsPage";
+import { useGATracking } from "@/hooks/use-ga-tracking";
 
 function PageLoader() {
   return (
@@ -53,6 +55,11 @@ function PageLoader() {
   );
 }
 
+function AppInner() {
+  useGATracking();
+  return null;
+}
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
@@ -60,6 +67,7 @@ function App() {
         <AuthProvider>
           <ConfigProvider>
             <TooltipProvider>
+              <AppInner />
               <Toaster />
               <Suspense fallback={<PageLoader />}>
                 <Switch>
@@ -204,6 +212,11 @@ function App() {
                       <SharedMessagesPage />
                     </ProtectedRoute>
                   </Route>
+                  <Route path="/dashboard/admin/diagnostics">
+                    <ProtectedRoute minLevel={3}>
+                      <DiagnosticsPage />
+                    </ProtectedRoute>
+                  </Route>
                   <Route path="/dashboard/admin/settings">
                     <ProtectedRoute minLevel={3}>
                       <SharedSettingsPage />
@@ -254,6 +267,11 @@ function App() {
                   <Route path="/dashboard/owner/analytics">
                     <ProtectedRoute minLevel={4}>
                       <SharedAnalyticsPage />
+                    </ProtectedRoute>
+                  </Route>
+                  <Route path="/dashboard/owner/diagnostics">
+                    <ProtectedRoute minLevel={4}>
+                      <DiagnosticsPage />
                     </ProtectedRoute>
                   </Route>
                   <Route path="/dashboard/owner">

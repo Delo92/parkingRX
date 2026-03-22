@@ -10,6 +10,9 @@ import fs from "fs";
 import { firebaseStorage, firebaseAuth, getAdminAuth, firestore } from "./firebase-admin";
 import { sendDoctorApprovalEmail, sendAdminNotificationEmail, sendPatientApprovalEmail, sendDoctorCompletionCopyEmail } from "./email";
 import { chargeCard, isAuthorizeNetConfigured, getAcceptJsUrl, getApiLoginId } from "./authorizenet";
+import { logError, getErrorLogs, createErrorContext } from "./services/errorLogger";
+import { getGA4Report } from "./services/ga4Analytics";
+import { trackPromoRedemption } from "./services/promoTracking";
 
 function getContactEmail(user: Record<string, any>): string {
   return user.contactEmail || user.email;
@@ -302,6 +305,40 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+
+  // ===========================================================================
+  // ERROR INTERCEPT MIDDLEWARE — logs 4xx/5xx to Firestore errorLogs
+  // ===========================================================================
+  app.use((req: Request, res: Response, next: NextFunction) => {
+    const originalJson = res.json.bind(res);
+    res.json = function (body: any) {
+      const status = res.statusCode;
+      const isError = status >= 400;
+      const skipList = [
+        req.path === "/api/admin/session" && status === 401,
+        req.path.startsWith("/api/cart/") && status === 404,
+      ];
+      if (isError && !skipList.some(Boolean)) {
+        const message = (typeof body === "object" && body?.message) ? body.message : String(body ?? "Unknown error");
+        logError({
+          errorType: "api",
+          severity: status >= 500 ? "error" : "warning",
+          message,
+          endpoint: req.path,
+          method: req.method,
+          statusCode: status,
+          userUid: (req as any).user?.id,
+          userEmail: (req as any).user?.email,
+          userLevel: (req as any).user?.userLevel ?? null,
+          userName: (req as any).user ? `${(req as any).user.firstName || ""} ${(req as any).user.lastName || ""}`.trim() : undefined,
+          context: createErrorContext({ query: req.query, body: status >= 500 ? req.body : undefined }),
+          wasShownToUser: true,
+        }).catch(() => {});
+      }
+      return originalJson(body);
+    };
+    next();
+  });
 
   // ===========================================================================
   // FILE UPLOAD ROUTES (Firestore)
@@ -970,7 +1007,7 @@ export async function registerRoutes(
 
   app.post("/api/payment/charge", requireAuth, async (req, res) => {
     try {
-      const { opaqueDataDescriptor, opaqueDataValue, packageId, formData } = req.body;
+      const { opaqueDataDescriptor, opaqueDataValue, packageId, formData, promoCode } = req.body;
 
       if (!opaqueDataDescriptor || !opaqueDataValue) {
         res.status(400).json({ message: "Payment token is required" });
@@ -1160,6 +1197,16 @@ export async function registerRoutes(
       });
 
       await storage.updateUser(patient.id, { draftFormData: {} } as any);
+
+      if (promoCode && typeof promoCode === "string" && promoCode.trim()) {
+        trackPromoRedemption({
+          code: promoCode.trim(),
+          orderNumber: chargeResult.transactionId || application.id,
+          orderValue: (Number(pkg.price) / 100).toFixed(2),
+          customerName: patientName,
+          customerEmail: patient.email,
+        }).catch(err => console.error("Promo tracking error (non-blocking):", err));
+      }
 
       res.json({
         success: true,
@@ -3763,6 +3810,48 @@ export async function registerRoutes(
     } catch (error: any) {
       console.error("Migration error:", error);
       res.status(500).json({ message: error.message });
+    }
+  });
+
+  // ===========================================================================
+  // DIAGNOSTICS — GA4 Analytics
+  // ===========================================================================
+  app.get("/api/admin/ga4-analytics", requireAuth, requireLevel(3), async (req, res) => {
+    try {
+      const dateRange = (req.query.dateRange as string) || "30d";
+      const data = await getGA4Report(dateRange);
+      res.json({ success: true, data });
+    } catch (error: any) {
+      const isNotConfigured = error.message?.includes("GA4_PROPERTY_ID");
+      res.status(isNotConfigured ? 503 : 500).json({
+        success: false,
+        message: isNotConfigured
+          ? "GA4_PROPERTY_ID environment variable not set"
+          : error.message || "Failed to fetch analytics",
+      });
+    }
+  });
+
+  // ===========================================================================
+  // DIAGNOSTICS — Error Logs
+  // ===========================================================================
+  app.get("/api/admin/error-logs", requireAuth, requireLevel(3), async (req, res) => {
+    try {
+      const limit = Math.min(parseInt((req.query.limit as string) || "50"), 100);
+      const offset = parseInt((req.query.offset as string) || "0");
+      const severity = req.query.severity as string | undefined;
+      const errorType = req.query.errorType as string | undefined;
+
+      const result = await getErrorLogs({
+        limit,
+        offset,
+        severity: severity && severity !== "all" ? severity as any : undefined,
+        errorType: errorType && errorType !== "all" ? errorType as any : undefined,
+      });
+
+      res.json(result);
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to fetch error logs" });
     }
   });
 

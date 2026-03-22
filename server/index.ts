@@ -3,6 +3,7 @@ import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 import path from "path";
+import { logError } from "./services/errorLogger";
 
 const app = express();
 const httpServer = createServer(app);
@@ -66,17 +67,53 @@ app.use((req, res, next) => {
 (async () => {
   await registerRoutes(httpServer, app);
 
-  app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
+  app.use((err: any, req: Request, res: Response, next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
 
     console.error("Internal Server Error:", err);
+
+    logError({
+      errorType: "system",
+      severity: "critical",
+      message,
+      stackTrace: err.stack,
+      endpoint: req.path,
+      method: req.method,
+      statusCode: status,
+      userUid: (req as any).user?.id,
+      userEmail: (req as any).user?.email,
+      userLevel: (req as any).user?.userLevel ?? null,
+      context: { name: err.name },
+    }).catch(() => {});
 
     if (res.headersSent) {
       return next(err);
     }
 
     return res.status(status).json({ message });
+  });
+
+  process.on("uncaughtException", (err) => {
+    console.error("Uncaught Exception:", err);
+    logError({
+      errorType: "system",
+      severity: "critical",
+      message: err.message || "Uncaught Exception",
+      stackTrace: err.stack,
+      context: { name: err.name },
+    }).catch(() => {});
+  });
+
+  process.on("unhandledRejection", (reason: any) => {
+    console.error("Unhandled Rejection:", reason);
+    logError({
+      errorType: "system",
+      severity: "critical",
+      message: reason?.message || String(reason) || "Unhandled Promise Rejection",
+      stackTrace: reason?.stack,
+      context: { name: reason?.name },
+    }).catch(() => {});
   });
 
   // importantly only setup vite in development and after

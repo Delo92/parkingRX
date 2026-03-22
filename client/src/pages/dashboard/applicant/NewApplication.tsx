@@ -87,6 +87,7 @@ export default function NewApplication() {
   const [cardExpMonth, setCardExpMonth] = useState("");
   const [cardExpYear, setCardExpYear] = useState("");
   const [cardCvv, setCardCvv] = useState("");
+  const [promoCode, setPromoCode] = useState("");
   const [paymentProcessing, setPaymentProcessing] = useState(false);
   const [paymentError, setPaymentError] = useState("");
   const [acceptJsReady, setAcceptJsReady] = useState(false);
@@ -251,6 +252,7 @@ export default function NewApplication() {
         opaqueDataValue: opaqueData.dataValue,
         packageId: form.getValues("packageId"),
         formData,
+        promoCode: promoCode.trim() || undefined,
       });
       const result = await res.json();
 
@@ -761,6 +763,20 @@ export default function NewApplication() {
                       <p className="text-3xl font-bold text-primary" data-testid="text-payment-amount">
                         ${selectedPackage ? (Number(selectedPackage.price) / 100).toFixed(2) : "0.00"}
                       </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="promoCode">Promo Code <span className="text-muted-foreground font-normal">(optional)</span></Label>
+                      <Input
+                        id="promoCode"
+                        placeholder="Enter promo code"
+                        value={promoCode}
+                        onChange={(e) => setPromoCode(e.target.value.toUpperCase())}
+                        data-testid="input-promo-code"
+                        disabled={paymentProcessing}
+                        autoComplete="off"
+                        className="uppercase"
+                      />
                     </div>
 
                     {paymentError && (
