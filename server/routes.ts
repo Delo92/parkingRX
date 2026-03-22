@@ -907,6 +907,16 @@ export async function registerRoutes(
   // CONFIG ROUTES
   // ===========================================================================
 
+  function scrubLegacyUrl(url: string | null | undefined): string {
+    if (!url) return "";
+    if (url.includes("paw-credentials.firebasestorage.app")) return "";
+    return url;
+  }
+  function scrubLegacyUrlArray(arr: string[] | null | undefined): string[] {
+    if (!Array.isArray(arr)) return [];
+    return arr.map(u => scrubLegacyUrl(u)).filter(Boolean);
+  }
+
   app.get("/api/config", async (req, res) => {
     try {
       const config = await storage.getSiteConfig();
@@ -922,8 +932,6 @@ export async function registerRoutes(
           accentColor: config.accentColor,
           heroTitle: config.heroTitle,
           heroSubtitle: config.heroSubtitle,
-          heroBackgroundUrl: config.heroBackgroundUrl,
-          heroMediaUrl: config.heroMediaUrl,
           heroButtonText: config.heroButtonText,
           heroButtonLink: config.heroButtonLink,
           heroSecondaryButtonText: config.heroSecondaryButtonText,
@@ -934,12 +942,14 @@ export async function registerRoutes(
           contactEmail: config.contactEmail,
           contactPhone: config.contactPhone,
           address: config.address,
-          aboutMediaUrl: config.aboutMediaUrl || "",
-          ctaMediaUrl: config.ctaMediaUrl || "",
-          contactMediaUrl: config.contactMediaUrl || "",
-          departmentMediaUrls: config.departmentMediaUrls || [],
-          testimonialMediaUrls: config.testimonialMediaUrls || [],
-          galleryImages: config.galleryImages || [],
+          heroBackgroundUrl: scrubLegacyUrl(config.heroBackgroundUrl) || undefined,
+          heroMediaUrl: scrubLegacyUrl(config.heroMediaUrl) || undefined,
+          aboutMediaUrl: scrubLegacyUrl(config.aboutMediaUrl),
+          ctaMediaUrl: scrubLegacyUrl(config.ctaMediaUrl),
+          contactMediaUrl: scrubLegacyUrl(config.contactMediaUrl),
+          departmentMediaUrls: scrubLegacyUrlArray(config.departmentMediaUrls),
+          testimonialMediaUrls: scrubLegacyUrlArray(config.testimonialMediaUrls),
+          galleryImages: scrubLegacyUrlArray(config.galleryImages),
           levelNames: {
             level1: config.level1Name,
             level2: config.level2Name,

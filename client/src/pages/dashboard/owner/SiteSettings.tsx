@@ -611,7 +611,7 @@ export default function SiteSettings() {
                                 </FormDescription>
                                 <FormMessage />
                               </div>
-                              <MediaPreview url={val || "https://storage.googleapis.com/paw-credentials.firebasestorage.app/defaults/hero-bg.jpg"} data-testid="preview-hero-media" />
+                              <MediaPreview url={val || "/images/parking/hero.jpg"} data-testid="preview-hero-media" />
                             </div>
                           </FormItem>
                         );
@@ -883,7 +883,7 @@ export default function SiteSettings() {
                                   </FormDescription>
                                   <FormMessage />
                                 </div>
-                                <MediaPreview url={val || "https://storage.googleapis.com/paw-credentials.firebasestorage.app/defaults/about.jpg"} data-testid="preview-about-media" />
+                                <MediaPreview url={val || "/images/parking/about.jpg"} data-testid="preview-about-media" />
                               </div>
                             </FormItem>
                           );
@@ -913,7 +913,7 @@ export default function SiteSettings() {
                                   </FormDescription>
                                   <FormMessage />
                                 </div>
-                                <MediaPreview url={val || "https://storage.googleapis.com/paw-credentials.firebasestorage.app/defaults/hero-bg.jpg"} data-testid="preview-cta-media" />
+                                <MediaPreview url={val || "/images/parking/cta.jpg"} data-testid="preview-cta-media" />
                               </div>
                             </FormItem>
                           );
@@ -943,7 +943,7 @@ export default function SiteSettings() {
                                   </FormDescription>
                                   <FormMessage />
                                 </div>
-                                <MediaPreview url={val || "https://storage.googleapis.com/paw-credentials.firebasestorage.app/defaults/departments-3.jpg"} data-testid="preview-contact-media" />
+                                <MediaPreview url={val || "/images/parking/contact.jpg"} data-testid="preview-contact-media" />
                               </div>
                             </FormItem>
                           );
@@ -999,7 +999,7 @@ export default function SiteSettings() {
                                 <Trash2 className="mr-1 h-3 w-3" /> Clear
                               </Button>
                             </div>
-                            <MediaPreview url={val || `https://storage.googleapis.com/paw-credentials.firebasestorage.app/defaults/departments-${index + 1}.jpg`} className="aspect-[4/3]" data-testid={`preview-dept-media-${index}`} />
+                            <MediaPreview url={val || `/images/parking/dept-${index + 1}.jpg`} className="aspect-[4/3]" data-testid={`preview-dept-media-${index}`} />
                           </div>
                         );
                       })}
@@ -1033,7 +1033,7 @@ export default function SiteSettings() {
                         const val = form.watch(`testimonialMedia.${index}.url`);
                         return (
                           <div key={field.id} className="flex gap-4 items-center border rounded-md p-3" data-testid={`testimonial-media-${index}`}>
-                            <MediaPreview url={val || `https://storage.googleapis.com/paw-credentials.firebasestorage.app/defaults/testimonials/testimonials-${index + 1}.jpg`} className="w-16 h-16 shrink-0 rounded-full overflow-hidden" data-testid={`preview-testimonial-media-${index}`} />
+                            <MediaPreview url={val || `/images/parking/testimonial-${index + 1}.jpg`} className="w-16 h-16 shrink-0 rounded-full overflow-hidden" data-testid={`preview-testimonial-media-${index}`} />
                             <div className="flex-1 space-y-1">
                               <p className="text-sm font-medium">{testimonialNames[index] || `Testimonial ${index + 1}`}</p>
                               <FormField
