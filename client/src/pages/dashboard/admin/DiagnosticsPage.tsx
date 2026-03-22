@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import { DashboardLayout } from "@/components/dashboard/DashboardLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -493,32 +494,34 @@ function ErrorLogsTab() {
 
 export default function DiagnosticsPage() {
   return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold mb-1">Diagnostics</h1>
-        <p className="text-muted-foreground">
-          Track site traffic, visitor behavior, and system health.
-        </p>
+    <DashboardLayout>
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold mb-1">Diagnostics</h1>
+          <p className="text-muted-foreground">
+            Track site traffic, visitor behavior, and system health.
+          </p>
+        </div>
+
+        <Tabs defaultValue="analytics">
+          <TabsList className="mb-4">
+            <TabsTrigger value="analytics" className="flex items-center gap-2" data-testid="tab-analytics">
+              <BarChart3 className="h-4 w-4" /> Analytics
+            </TabsTrigger>
+            <TabsTrigger value="errors" className="flex items-center gap-2" data-testid="tab-error-logs">
+              <AlertCircle className="h-4 w-4" /> Error Logs
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="analytics">
+            <AnalyticsTab />
+          </TabsContent>
+
+          <TabsContent value="errors">
+            <ErrorLogsTab />
+          </TabsContent>
+        </Tabs>
       </div>
-
-      <Tabs defaultValue="analytics">
-        <TabsList className="mb-4">
-          <TabsTrigger value="analytics" className="flex items-center gap-2" data-testid="tab-analytics">
-            <BarChart3 className="h-4 w-4" /> Analytics
-          </TabsTrigger>
-          <TabsTrigger value="errors" className="flex items-center gap-2" data-testid="tab-error-logs">
-            <AlertCircle className="h-4 w-4" /> Error Logs
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="analytics">
-          <AnalyticsTab />
-        </TabsContent>
-
-        <TabsContent value="errors">
-          <ErrorLogsTab />
-        </TabsContent>
-      </Tabs>
-    </div>
+    </DashboardLayout>
   );
 }
