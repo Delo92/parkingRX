@@ -108,7 +108,7 @@ export default function Home() {
   ];
 
   const defaultGalleryImages = [
-    "/images/parking/gallery-1.jpg",
+    "/images/parking/gallery-1.png",
     "/images/parking/gallery-2.jpg",
     "/images/parking/gallery-3.jpg",
     "/images/parking/gallery-4.png",
