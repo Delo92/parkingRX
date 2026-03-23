@@ -71,14 +71,16 @@ export function Header({ onMenuClick, showMenuButton = false }: HeaderProps) {
       <div className="bg-primary text-primary-foreground">
         <div className="container flex items-center justify-between h-10 text-sm">
           <div className="flex items-center gap-4">
-            <a href={`mailto:${config.contactEmail || "contact@medilab.com"}`} className="flex items-center gap-1.5 text-primary-foreground/90 hover:text-primary-foreground transition-colors" data-testid="link-topbar-email">
+            <a href={`mailto:${config.contactEmail || "info@parkingrx.com"}`} className="flex items-center gap-1.5 text-primary-foreground/90 hover:text-primary-foreground transition-colors" data-testid="link-topbar-email">
               <Mail className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">{config.contactEmail || "contact@medilab.com"}</span>
+              <span className="hidden sm:inline">{config.contactEmail || "info@parkingrx.com"}</span>
             </a>
-            <a href={`tel:${config.contactPhone || "+1 5589 55488 55"}`} className="flex items-center gap-1.5 text-primary-foreground/90 hover:text-primary-foreground transition-colors" data-testid="link-topbar-phone">
+            {(config.contactPhone) && (
+            <a href={`tel:${config.contactPhone}`} className="flex items-center gap-1.5 text-primary-foreground/90 hover:text-primary-foreground transition-colors" data-testid="link-topbar-phone">
               <Phone className="h-3.5 w-3.5" />
-              <span className="hidden sm:inline">{config.contactPhone || "+1 5589 55488 55"}</span>
+              <span className="hidden sm:inline">{config.contactPhone}</span>
             </a>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <ThemeToggle />
