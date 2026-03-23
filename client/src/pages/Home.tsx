@@ -111,7 +111,7 @@ export default function Home() {
     "/images/parking/gallery-1.jpg",
     "/images/parking/gallery-2.jpg",
     "/images/parking/gallery-3.jpg",
-    "/images/parking/gallery-4.jpg",
+    "/images/parking/gallery-4.png",
     "/images/parking/gallery-5.png",
     "/images/parking/gallery-6.png",
     "/images/parking/gallery-7.png",
