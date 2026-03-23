@@ -278,7 +278,7 @@ export function UserProfileModal({ user: selectedUser, onClose, canEditLevel = t
     },
   });
 
-  const handleOpenProfile = () => {
+  useEffect(() => {
     if (selectedUser) {
       setEditedUser({
         firstName: selectedUser.firstName,
@@ -295,12 +295,10 @@ export function UserProfileModal({ user: selectedUser, onClose, canEditLevel = t
       setNewLevel(selectedUser.userLevel.toString());
       setNewStatus(selectedUser.isActive ? "active" : "inactive");
       setIsEditing(false);
+    } else {
+      setEditedUser({});
     }
-  };
-
-  if (selectedUser && !editedUser.firstName) {
-    handleOpenProfile();
-  }
+  }, [selectedUser?.id]);
 
   const handleSaveProfile = () => {
     if (selectedUser) {
