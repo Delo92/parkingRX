@@ -116,6 +116,7 @@ export default function Home() {
     "/images/parking/gallery-6.png",
     "/images/parking/gallery-7.png",
     "/images/parking/gallery-8.png",
+    "/images/parking/gallery-9.png",
   ];
   const galleryImages = config.galleryImages && config.galleryImages.length > 0
     ? config.galleryImages
