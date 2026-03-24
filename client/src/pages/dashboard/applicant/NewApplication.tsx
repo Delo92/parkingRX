@@ -87,7 +87,7 @@ export default function NewApplication() {
   const [cardExpMonth, setCardExpMonth] = useState("");
   const [cardExpYear, setCardExpYear] = useState("");
   const [cardCvv, setCardCvv] = useState("");
-  const [promoCode, setPromoCode] = useState("");
+  const [promoCode, setPromoCode] = useState(() => sessionStorage.getItem("referralPromoCode") || "");
   const [paymentProcessing, setPaymentProcessing] = useState(false);
   const [paymentError, setPaymentError] = useState("");
   const [acceptJsReady, setAcceptJsReady] = useState(false);
@@ -263,6 +263,7 @@ export default function NewApplication() {
       queryClient.invalidateQueries({ queryKey: ["/api/applications"] });
       apiRequest("PUT", "/api/profile/draft-form", { draftFormData: {} }).catch(() => {});
       queryClient.invalidateQueries({ queryKey: ["/api/profile/draft-form"] });
+      sessionStorage.removeItem("referralPromoCode");
       toast({
         title: "Payment Successful!",
         description: "Your application has been submitted and is being processed.",

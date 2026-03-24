@@ -44,6 +44,7 @@ import PlaceholderPage from "@/pages/dashboard/placeholders/PlaceholderPage";
 import DiagnosticsPage from "@/pages/dashboard/admin/DiagnosticsPage";
 import SystemSettingsPage from "@/pages/dashboard/admin/SystemSettingsPage";
 import { useGATracking } from "@/hooks/use-ga-tracking";
+import { ReferralCapture } from "@/components/ReferralCapture";
 
 function PageLoader() {
   return (
@@ -294,6 +295,11 @@ function App() {
                   {/* Public Doctor Review Portal (no auth needed) */}
                   <Route path="/review/:token">
                     <DoctorReviewPortal />
+                  </Route>
+
+                  {/* Referral/promo code catch-all — captures /ANYCODE and pre-fills payment form */}
+                  <Route path="/:referralCode">
+                    <AppShell><ReferralCapture /></AppShell>
                   </Route>
 
                   {/* Fallback */}
